@@ -7,9 +7,6 @@ let ffmpegLoaded = false;
 
 // Initialize FFmpeg lazily
 async function getFFmpeg(): Promise<FFmpeg> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/bc9028c4-9a3f-4ea7-83bc-f50090d47ee1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VideoExporter.ts:9',message:'getFFmpeg entry',data:{ffmpegLoaded,ffmpegLoading,hasInstance:Boolean(ffmpeg)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion agent log
   if (ffmpegLoaded && ffmpeg) return ffmpeg;
   if (ffmpegLoading) {
     // Wait for existing load
@@ -25,18 +22,12 @@ async function getFFmpeg(): Promise<FFmpeg> {
 
     // Load FFmpeg core from CDN
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bc9028c4-9a3f-4ea7-83bc-f50090d47ee1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VideoExporter.ts:27',message:'ffmpeg load baseURL',data:{baseURL},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion agent log
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
     });
 
     ffmpegLoaded = true;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bc9028c4-9a3f-4ea7-83bc-f50090d47ee1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VideoExporter.ts:35',message:'ffmpeg load success',data:{ffmpegLoaded},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion agent log
     return ffmpeg;
   } finally {
     ffmpegLoading = false;
@@ -160,9 +151,6 @@ export async function exportMP4(
   fps: number,
   onProgress?: (p: ExportProgress) => void
 ): Promise<Blob> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/bc9028c4-9a3f-4ea7-83bc-f50090d47ee1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VideoExporter.ts:155',message:'exportMP4 entry',data:{hasAudioUrl:Boolean(audioUrl),durationMs,fps},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion agent log
   onProgress?.({ stage: "recording", progress: 0, message: "Recording video..." });
   
   // First record to WebM (video only)
@@ -182,69 +170,94 @@ export async function exportMP4(
   
   onProgress?.({ stage: "processing", progress: 0.55, message: "Processing video..." });
   
-  // Write video to FFmpeg virtual filesystem
-  const videoData = new Uint8Array(await webmBlob.arrayBuffer());
-  await ff.writeFile("input.webm", videoData);
+  // Set up progress monitoring
+  const progressHandler = ({ progress }: { progress: number }) => {
+    // progress is 0-1, map it to the processing phase (0.55 - 0.95)
+    const mappedProgress = 0.55 + (progress * 0.4);
+    onProgress?.({ 
+      stage: "processing", 
+      progress: mappedProgress, 
+      message: `Processing video... ${Math.round(progress * 100)}%`
+    });
+  };
   
-  // If we have audio, fetch and write it
-  if (audioUrl) {
-    onProgress?.({ stage: "processing", progress: 0.6, message: "Processing audio..." });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bc9028c4-9a3f-4ea7-83bc-f50090d47ee1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VideoExporter.ts:184',message:'fetch audio for mp4',data:{audioUrlPrefix:audioUrl.slice(0,32)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion agent log
-    const audioData = await fetchFile(audioUrl);
-    await ff.writeFile("audio.mp3", audioData);
+  ff.on("progress", progressHandler);
+  
+  try {
+    // Write video to FFmpeg virtual filesystem
+    const videoData = new Uint8Array(await webmBlob.arrayBuffer());
+    await ff.writeFile("input.webm", videoData);
     
-    onProgress?.({ stage: "processing", progress: 0.7, message: "Muxing audio and video..." });
+    // If we have audio, fetch and write it
+    if (audioUrl) {
+      onProgress?.({ stage: "processing", progress: 0.6, message: "Processing audio..." });
+      const audioData = await fetchFile(audioUrl);
+      await ff.writeFile("audio.mp3", audioData);
+      
+      onProgress?.({ stage: "processing", progress: 0.7, message: "Muxing audio and video..." });
+      
+      // Mux video + audio into MP4
+      try {
+        await ff.exec([
+          "-i", "input.webm",
+          "-i", "audio.mp3",
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "23",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-shortest",
+          "-movflags", "+faststart",
+          "output.mp4",
+        ]);
+      } catch (err) {
+        console.error("FFmpeg muxing failed:", err);
+        throw new Error("Failed to mux audio and video");
+      }
+    } else {
+      onProgress?.({ stage: "processing", progress: 0.7, message: "Converting to MP4..." });
+      
+      // Just convert video to MP4
+      try {
+        await ff.exec([
+          "-i", "input.webm",
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "23",
+          "-an",
+          "-movflags", "+faststart",
+          "output.mp4",
+        ]);
+      } catch (err) {
+        console.error("FFmpeg conversion failed:", err);
+        throw new Error("Failed to convert video to MP4");
+      }
+    }
     
-    // Mux video + audio into MP4
-    await ff.exec([
-      "-i", "input.webm",
-      "-i", "audio.mp3",
-      "-c:v", "libx264",
-      "-preset", "fast",
-      "-crf", "23",
-      "-c:a", "aac",
-      "-b:a", "192k",
-      "-shortest",
-      "-movflags", "+faststart",
-      "output.mp4",
-    ]);
-  } else {
-    onProgress?.({ stage: "processing", progress: 0.7, message: "Converting to MP4..." });
+    onProgress?.({ stage: "processing", progress: 0.95, message: "Finalizing..." });
     
-    // Just convert video to MP4
-    await ff.exec([
-      "-i", "input.webm",
-      "-c:v", "libx264",
-      "-preset", "fast",
-      "-crf", "23",
-      "-an",
-      "-movflags", "+faststart",
-      "output.mp4",
-    ]);
+    // Read the output
+    const output = await ff.readFile("output.mp4");
+    
+    // Cleanup
+    await ff.deleteFile("input.webm");
+    if (audioUrl) await ff.deleteFile("audio.mp3");
+    await ff.deleteFile("output.mp4");
+    
+    onProgress?.({ stage: "done", progress: 1, message: "Complete!" });
+    
+    // Convert FileData to Blob - output can be Uint8Array or string
+    if (typeof output === "string") {
+      // If it's a string, encode it
+      return new Blob([new TextEncoder().encode(output)], { type: "video/mp4" });
+    }
+    // It's a Uint8Array - create a new copy to ensure clean ArrayBuffer
+    const arrayBuffer = new Uint8Array(output).buffer;
+    return new Blob([arrayBuffer], { type: "video/mp4" });
+  } finally {
+    // Clean up progress listener
+    ff.off("progress", progressHandler);
   }
-  
-  onProgress?.({ stage: "processing", progress: 0.95, message: "Finalizing..." });
-  
-  // Read the output
-  const output = await ff.readFile("output.mp4");
-  
-  // Cleanup
-  await ff.deleteFile("input.webm");
-  if (audioUrl) await ff.deleteFile("audio.mp3");
-  await ff.deleteFile("output.mp4");
-  
-  onProgress?.({ stage: "done", progress: 1, message: "Complete!" });
-  
-  // Convert FileData to Blob - output can be Uint8Array or string
-  if (typeof output === "string") {
-    // If it's a string, encode it
-    return new Blob([new TextEncoder().encode(output)], { type: "video/mp4" });
-  }
-  // It's a Uint8Array - create a new copy to ensure clean ArrayBuffer
-  const arrayBuffer = new Uint8Array(output).buffer;
-  return new Blob([arrayBuffer], { type: "video/mp4" });
 }
 
 // Download a blob as a file

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useStudioStore } from "../state/store";
+import { getAudioEngine } from "./AudioControls";
 import type { GifDuration, WebmDuration, Mp4Duration } from "../state/types";
 
 type ExportStatus = {
@@ -24,6 +25,9 @@ export function ExportBar() {
   const [expandedSection, setExpandedSection] = useState<"gif" | "webm" | "mp4" | null>(null);
 
   const isExporting = isRecording || isGifExporting || isMp4Exporting;
+  
+  // Get audio duration once for the MP4 section
+  const audioDuration = global.audioUrl ? getAudioEngine().getDuration() : 0;
 
   const gifDurations: GifDuration[] = [1, 3, 4.2, 5, 6.66];
   const webmDurations: WebmDuration[] = [0, 5, 15, 30, 60];
@@ -31,7 +35,13 @@ export function ExportBar() {
 
   const formatDuration = (d: number) => {
     if (d === 0) return "∞";
-    if (d === -1) return "🎵";
+    if (d === -1) {
+      // Show actual audio duration if available
+      if (audioDuration > 0) {
+        return `🎵 ${Math.round(audioDuration)}s`;
+      }
+      return "🎵";
+    }
     if (d === 4.2) return "4.2s";
     if (d === 6.66) return "6.6s";
     return `${d}s`;

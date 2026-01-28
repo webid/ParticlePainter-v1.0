@@ -131,6 +131,12 @@ export class AudioEngine {
     return this.player?.loaded ?? false;
   }
   
+  getDuration(): number {
+    // Returns duration in seconds, or 0 if not loaded
+    // Call isLoaded() first to check if audio is available
+    return this.player?.buffer?.duration ?? 0;
+  }
+  
   getAnalysis(): AudioAnalysisData {
     if (!this.isInitialized || !this.fft || !this.meter || !this.isPlaying()) {
       return DEFAULT_ANALYSIS;

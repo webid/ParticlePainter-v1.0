@@ -342,7 +342,7 @@ export class ParticleEngine {
       // Only use glyph palette if it has multiple shapes OR if the single shape differs from layer shape
       // This allows the layer shape parameter to override the default type-based shape
       let effectiveGlyphCount = glyphPalette.length;
-      if (effectiveGlyphCount === 1 && glyphPalette[0].shape === layerShape) {
+      if (effectiveGlyphCount === 1 && glyphPalette[0] && glyphPalette[0].shape === layerShape) {
         // Single entry matching layer shape - use layer shape parameter instead
         effectiveGlyphCount = 0;
       }

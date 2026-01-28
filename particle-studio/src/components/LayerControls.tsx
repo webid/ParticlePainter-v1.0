@@ -316,11 +316,17 @@ export function LayerControls({ selected }: { selected?: LayerConfig }) {
               value={layer.shape ?? "dot"}
               onChange={(e) => {
                 const newShape = e.target.value as ParticleShape;
-                // Update both shape and glyphPalette to keep them in sync
-                setLayer(layer.id, { 
-                  shape: newShape,
-                  glyphPalette: [{ shape: newShape, weight: 1.0 }]
-                });
+                // Only update glyphPalette if it's a single-entry palette (default case)
+                // This preserves multi-shape palettes while fixing the default behavior
+                if (!layer.glyphPalette || layer.glyphPalette.length <= 1) {
+                  setLayer(layer.id, { 
+                    shape: newShape,
+                    glyphPalette: [{ shape: newShape, weight: 1.0 }]
+                  });
+                } else {
+                  // Multi-shape palette exists, only update the shape parameter
+                  setLayer(layer.id, { shape: newShape });
+                }
               }}
             >
               {shapeOptions.map((o) => (

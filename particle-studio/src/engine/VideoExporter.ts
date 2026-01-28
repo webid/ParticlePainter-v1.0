@@ -171,7 +171,7 @@ export async function exportMP4(
   onProgress?.({ stage: "processing", progress: 0.55, message: "Processing video..." });
   
   // Set up progress monitoring
-  ff.on("progress", ({ progress }: { progress: number }) => {
+  const progressHandler = ({ progress }: { progress: number }) => {
     // progress is 0-1, map it to the processing phase (0.55 - 0.95)
     const mappedProgress = 0.55 + (progress * 0.4);
     onProgress?.({ 
@@ -179,78 +179,85 @@ export async function exportMP4(
       progress: mappedProgress, 
       message: `Processing video... ${Math.round(progress * 100)}%`
     });
-  });
+  };
   
-  // Write video to FFmpeg virtual filesystem
-  const videoData = new Uint8Array(await webmBlob.arrayBuffer());
-  await ff.writeFile("input.webm", videoData);
+  ff.on("progress", progressHandler);
   
-  // If we have audio, fetch and write it
-  if (audioUrl) {
-    onProgress?.({ stage: "processing", progress: 0.6, message: "Processing audio..." });
-    const audioData = await fetchFile(audioUrl);
-    await ff.writeFile("audio.mp3", audioData);
+  try {
+    // Write video to FFmpeg virtual filesystem
+    const videoData = new Uint8Array(await webmBlob.arrayBuffer());
+    await ff.writeFile("input.webm", videoData);
     
-    onProgress?.({ stage: "processing", progress: 0.7, message: "Muxing audio and video..." });
-    
-    // Mux video + audio into MP4
-    try {
-      await ff.exec([
-        "-i", "input.webm",
-        "-i", "audio.mp3",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-shortest",
-        "-movflags", "+faststart",
-        "output.mp4",
-      ]);
-    } catch (err) {
-      console.error("FFmpeg muxing failed:", err);
-      throw new Error("Failed to mux audio and video");
+    // If we have audio, fetch and write it
+    if (audioUrl) {
+      onProgress?.({ stage: "processing", progress: 0.6, message: "Processing audio..." });
+      const audioData = await fetchFile(audioUrl);
+      await ff.writeFile("audio.mp3", audioData);
+      
+      onProgress?.({ stage: "processing", progress: 0.7, message: "Muxing audio and video..." });
+      
+      // Mux video + audio into MP4
+      try {
+        await ff.exec([
+          "-i", "input.webm",
+          "-i", "audio.mp3",
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "23",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-shortest",
+          "-movflags", "+faststart",
+          "output.mp4",
+        ]);
+      } catch (err) {
+        console.error("FFmpeg muxing failed:", err);
+        throw new Error("Failed to mux audio and video");
+      }
+    } else {
+      onProgress?.({ stage: "processing", progress: 0.7, message: "Converting to MP4..." });
+      
+      // Just convert video to MP4
+      try {
+        await ff.exec([
+          "-i", "input.webm",
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "23",
+          "-an",
+          "-movflags", "+faststart",
+          "output.mp4",
+        ]);
+      } catch (err) {
+        console.error("FFmpeg conversion failed:", err);
+        throw new Error("Failed to convert video to MP4");
+      }
     }
-  } else {
-    onProgress?.({ stage: "processing", progress: 0.7, message: "Converting to MP4..." });
     
-    // Just convert video to MP4
-    try {
-      await ff.exec([
-        "-i", "input.webm",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-an",
-        "-movflags", "+faststart",
-        "output.mp4",
-      ]);
-    } catch (err) {
-      console.error("FFmpeg conversion failed:", err);
-      throw new Error("Failed to convert video to MP4");
+    onProgress?.({ stage: "processing", progress: 0.95, message: "Finalizing..." });
+    
+    // Read the output
+    const output = await ff.readFile("output.mp4");
+    
+    // Cleanup
+    await ff.deleteFile("input.webm");
+    if (audioUrl) await ff.deleteFile("audio.mp3");
+    await ff.deleteFile("output.mp4");
+    
+    onProgress?.({ stage: "done", progress: 1, message: "Complete!" });
+    
+    // Convert FileData to Blob - output can be Uint8Array or string
+    if (typeof output === "string") {
+      // If it's a string, encode it
+      return new Blob([new TextEncoder().encode(output)], { type: "video/mp4" });
     }
+    // It's a Uint8Array - create a new copy to ensure clean ArrayBuffer
+    const arrayBuffer = new Uint8Array(output).buffer;
+    return new Blob([arrayBuffer], { type: "video/mp4" });
+  } finally {
+    // Clean up progress listener
+    ff.off("progress", progressHandler);
   }
-  
-  onProgress?.({ stage: "processing", progress: 0.95, message: "Finalizing..." });
-  
-  // Read the output
-  const output = await ff.readFile("output.mp4");
-  
-  // Cleanup
-  await ff.deleteFile("input.webm");
-  if (audioUrl) await ff.deleteFile("audio.mp3");
-  await ff.deleteFile("output.mp4");
-  
-  onProgress?.({ stage: "done", progress: 1, message: "Complete!" });
-  
-  // Convert FileData to Blob - output can be Uint8Array or string
-  if (typeof output === "string") {
-    // If it's a string, encode it
-    return new Blob([new TextEncoder().encode(output)], { type: "video/mp4" });
-  }
-  // It's a Uint8Array - create a new copy to ensure clean ArrayBuffer
-  const arrayBuffer = new Uint8Array(output).buffer;
-  return new Blob([arrayBuffer], { type: "video/mp4" });
 }
 
 // Download a blob as a file

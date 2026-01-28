@@ -25,6 +25,9 @@ export function ExportBar() {
   const [expandedSection, setExpandedSection] = useState<"gif" | "webm" | "mp4" | null>(null);
 
   const isExporting = isRecording || isGifExporting || isMp4Exporting;
+  
+  // Get audio duration once for the MP4 section
+  const audioDuration = global.audioUrl ? getAudioEngine().getDuration() : 0;
 
   const gifDurations: GifDuration[] = [1, 3, 4.2, 5, 6.66];
   const webmDurations: WebmDuration[] = [0, 5, 15, 30, 60];
@@ -34,8 +37,6 @@ export function ExportBar() {
     if (d === 0) return "∞";
     if (d === -1) {
       // Show actual audio duration if available
-      const audioEngine = getAudioEngine();
-      const audioDuration = audioEngine.getDuration();
       if (audioDuration > 0) {
         return `🎵 ${Math.round(audioDuration)}s`;
       }

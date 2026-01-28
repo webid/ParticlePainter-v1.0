@@ -133,6 +133,7 @@ export class AudioEngine {
   
   getDuration(): number {
     // Returns duration in seconds, or 0 if not loaded
+    // Call isLoaded() first to check if audio is available
     return this.player?.buffer?.duration ?? 0;
   }
   

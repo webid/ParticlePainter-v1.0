@@ -342,20 +342,22 @@ export class ParticleEngine {
       const glyphPalette = l.glyphPalette || [];
       const layerShape = l.shape ?? "dot";
       
+      // SIMPLIFIED: Always use layer.shape directly - glyph palette is disabled
+      // Set effectiveGlyphCount to 0 so the shader uses u_shape instead of v_glyphShape
+      const effectiveGlyphCount = 0;
+      
       // TEMPORARY LOGGING: Track shape rendering (throttled to once per second)
       const now = Date.now();
-      if (now - this._lastShapeLogTime > 1000) {
+      const shouldLog = now - this._lastShapeLogTime > 1000;
+      if (shouldLog) {
         this._lastShapeLogTime = now;
         console.log("=== PARTICLE ENGINE RENDER SHAPE ===");
         console.log("Layer:", l.name, "| ID:", l.id);
         console.log("layer.shape:", l.shape);
         console.log("layerShape (with fallback):", layerShape);
         console.log("glyphPalette:", JSON.stringify(glyphPalette));
+        console.log("effectiveGlyphCount:", effectiveGlyphCount);
       }
-      
-      // SIMPLIFIED: Always use layer.shape directly - glyph palette is disabled
-      // Set effectiveGlyphCount to 0 so the shader uses u_shape instead of v_glyphShape
-      const effectiveGlyphCount = 0;
       
       gl.uniform1i(u_glyphCount, effectiveGlyphCount);
       
@@ -404,10 +406,9 @@ export class ParticleEngine {
       const shapeInt = shapeToInt(l.shape ?? "dot");
       
       // TEMPORARY LOGGING: Track shape uniform being set
-      if (now - this._lastShapeLogTime < 100) {
+      if (shouldLog) {
         console.log("shapeInt (sent to shader):", shapeInt);
         console.log("Shape mapping: dot=0, star=1, dash=2, tilde=3, square=4, diamond=5, ring=6, cross=7");
-        console.log("effectiveGlyphCount:", effectiveGlyphCount);
         console.log("=== END PARTICLE ENGINE RENDER SHAPE ===");
       }
       

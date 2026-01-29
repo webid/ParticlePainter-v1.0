@@ -201,10 +201,6 @@ class StandaloneParticleEngine {
     this.layers = [];
     this.global = SCENE_DATA.global;
     
-    // Accumulation texture for trail effects
-    this.accumulationCanvas = document.createElement('canvas');
-    this.accumulationCtx = this.accumulationCanvas.getContext('2d');
-    
     // Initialize
     this.resize(2048, 2048);
     this.initShaders();
@@ -218,8 +214,6 @@ class StandaloneParticleEngine {
   resize(w, h) {
     this.canvas.width = w;
     this.canvas.height = h;
-    this.accumulationCanvas.width = w;
-    this.accumulationCanvas.height = h;
     this.gl.viewport(0, 0, w, h);
   }
   
@@ -249,7 +243,8 @@ class StandaloneParticleEngine {
       
       void main() {
         vec2 pos = aPosition / uResolution;
-        vec2 clip = pos * 2.0 - 1.0;
+        // Flip Y to convert from screen coordinates (y down) to WebGL (y up)
+        vec2 clip = vec2(pos.x * 2.0 - 1.0, 1.0 - pos.y * 2.0);
         gl_Position = vec4(clip, 0.0, 1.0);
         
         vSeed = aSeed;
@@ -569,20 +564,24 @@ class StandaloneParticleEngine {
     
     switch (region) {
       case 'topEdge':
-        x = (rand() * spread + (1 - spread) * 0.5) * w;
-        y = h - 10;
-        break;
-      case 'offCanvasTop':
-        x = (rand() * spread + (1 - spread) * 0.5) * w;
-        y = h + offset * h;
-        break;
-      case 'bottomEdge':
+        // Top edge = y near 0 (top of screen)
         x = (rand() * spread + (1 - spread) * 0.5) * w;
         y = 10;
         break;
-      case 'offCanvasBottom':
+      case 'offCanvasTop':
+        // Above canvas = y < 0
         x = (rand() * spread + (1 - spread) * 0.5) * w;
         y = -offset * h;
+        break;
+      case 'bottomEdge':
+        // Bottom edge = y near h (bottom of screen)
+        x = (rand() * spread + (1 - spread) * 0.5) * w;
+        y = h - 10;
+        break;
+      case 'offCanvasBottom':
+        // Below canvas = y > h
+        x = (rand() * spread + (1 - spread) * 0.5) * w;
+        y = h + offset * h;
         break;
       case 'leftEdge':
         x = 10;
@@ -624,15 +623,17 @@ class StandaloneParticleEngine {
     
     let vx = 0, vy = 0;
     
-    // Region-specific initial velocities
+    // Region-specific initial velocities (screen coordinates: +y is down)
     switch (region) {
       case 'offCanvasTop':
-        vx = (seed - 0.5) * 0.02 * w;
-        vy = -0.05 * h;
-        break;
-      case 'offCanvasBottom':
+        // Particles above canvas fall down (positive vy)
         vx = (seed - 0.5) * 0.02 * w;
         vy = 0.05 * h;
+        break;
+      case 'offCanvasBottom':
+        // Particles below canvas rise up (negative vy)
+        vx = (seed - 0.5) * 0.02 * w;
+        vy = -0.05 * h;
         break;
       case 'offCanvasLeft':
         vx = 0.05 * w;
@@ -649,23 +650,28 @@ class StandaloneParticleEngine {
         vy = Math.sin(angle) * burstMag * rand();
         break;
       default:
-        // Type-specific spawn velocities
+        // Type-specific spawn velocities (screen coordinates: +y is down)
         const type = config.type || 'dust';
         if (type === 'sand') {
+          // Sand falls down (positive vy)
           vx = (seed - 0.5) * baseSpawnMag * 0.3 * w;
-          vy = -Math.abs(rand()) * baseSpawnMag * h;
+          vy = Math.abs(rand()) * baseSpawnMag * h;
         } else if (type === 'dust') {
+          // Dust drifts randomly
           vx = (seed - 0.5) * baseSpawnMag * 0.5 * w;
           vy = (rand() - 0.5) * baseSpawnMag * 0.5 * h;
         } else if (type === 'sparks') {
+          // Sparks rise (negative vy)
           vx = (seed - 0.5) * baseSpawnMag * w;
-          vy = Math.abs(rand()) * baseSpawnMag * 2.0 * h;
+          vy = -Math.abs(rand()) * baseSpawnMag * 2.0 * h;
         } else if (type === 'crumbs') {
+          // Crumbs fall down (positive vy)
           vx = (seed - 0.5) * baseSpawnMag * 0.5 * w;
-          vy = -Math.abs(rand()) * baseSpawnMag * 0.8 * h;
+          vy = Math.abs(rand()) * baseSpawnMag * 0.8 * h;
         } else if (type === 'liquid') {
+          // Liquid falls down (positive vy)
           vx = (seed - 0.5) * baseSpawnMag * 0.2 * w;
-          vy = -Math.abs(rand()) * baseSpawnMag * 0.6 * h;
+          vy = Math.abs(rand()) * baseSpawnMag * 0.6 * h;
         } else { // ink
           vx = (seed - 0.5) * baseSpawnMag * 0.3 * w;
           vy = (rand() - 0.5) * baseSpawnMag * 0.3 * h;
@@ -880,9 +886,10 @@ class StandaloneParticleEngine {
       
       // ===== FORCE CALCULATIONS =====
       
-      // Gravity with type-specific mass and buoyancy
+      // Gravity with type-specific mass and buoyancy (screen coords: +y is down)
+      // Positive gravity pulls down, buoyancy resists (makes things rise)
       const effectiveGravity = gravity * typeProps.mass - typeProps.buoyancy * 0.1;
-      vy -= effectiveGravity * h * dt;
+      vy += effectiveGravity * h * dt;
       
       // Wind with type-specific response
       vx += windDirX * windStrength * typeProps.windResponse * w * dt;
@@ -927,15 +934,15 @@ class StandaloneParticleEngine {
       
       // ===== TYPE-SPECIFIC BEHAVIORS =====
       
-      // Terminal velocity
+      // Terminal velocity (limit downward speed in screen coords)
       const terminalVel = (0.08 + typeProps.mass * 0.06) * h;
-      if (vy < -terminalVel) vy = -terminalVel;
+      if (vy > terminalVel) vy = terminalVel;
       
       const type = config.type || 'dust';
       
-      // Sparks rise and decay
+      // Sparks rise and decay (negative vy = rising in screen coords)
       if (type === 'sparks') {
-        vy += typeProps.buoyancy * 0.15 * h * dt;
+        vy -= typeProps.buoyancy * 0.15 * h * dt;
         vx *= (1.0 - 0.4 * dt);
         vy *= (1.0 - 0.4 * dt);
       }
@@ -1005,7 +1012,8 @@ class StandaloneParticleEngine {
       
       // Type-specific respawn
       if (type === 'sand') {
-        if (y < 0.01 * h && Math.abs(vy) < 0.001 * h && Math.random() < spawnRate) shouldRespawn = true;
+        // Sand settles at bottom (y near h in screen coords)
+        if (y > 0.99 * h && Math.abs(vy) < 0.001 * h && Math.random() < spawnRate) shouldRespawn = true;
       } else if (type === 'sparks') {
         if (speedMag < 0.003 && Math.random() < spawnRate * 0.5 + decayRate * 0.1) shouldRespawn = true;
       } else if (type === 'crumbs') {

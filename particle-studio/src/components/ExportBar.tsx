@@ -111,7 +111,26 @@ export function ExportBar() {
     
     setIsQuickExporting(true);
     try {
-      const blob = await quickExportWebM(frames);
+      // Get audio stream if audio is loaded and available
+      let audioStream: MediaStream | null = null;
+      if (global.audioUrl) {
+        try {
+          const audioEngine = getAudioEngine();
+          if (audioEngine.isLoaded()) {
+            const audioCtx = (await import("tone")).context.rawContext;
+            if (audioCtx && audioCtx instanceof AudioContext) {
+              const dest = audioCtx.createMediaStreamDestination();
+              // Connect Tone.js destination to capture destination
+              (await import("tone")).getDestination().connect(dest);
+              audioStream = dest.stream;
+            }
+          }
+        } catch (audioErr) {
+          console.warn("Could not capture audio for quick export:", audioErr);
+        }
+      }
+      
+      const blob = await quickExportWebM(frames, undefined, audioStream);
       downloadBlob(blob, `particle-quick-${Date.now()}.webm`);
     } catch (err) {
       alert(`Quick export failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -257,7 +257,7 @@ export async function recordWebM(
 // Export MP4 with audio using FFmpeg
 // Calculate dynamic timeout based on video duration and FPS
 // Higher FPS and longer videos take proportionally more time to encode
-// Formula: 20x video duration + 5 minutes baseline, with 10 minute minimum
+// Formula: (20x video duration + 5 minutes baseline) * FPS multiplier, with 10 minute minimum
 function calculateFFmpegTimeout(durationMs: number, fps: number): number {
   const baseTimeoutMs = 5 * 60 * 1000; // 5 minutes baseline
   const durationBasedTimeout = durationMs * 20; // 20x video duration

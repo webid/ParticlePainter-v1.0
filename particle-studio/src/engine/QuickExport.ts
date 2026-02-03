@@ -146,17 +146,16 @@ export async function quickExportWebM(
   
   // Combine video and audio tracks
   const tracks = [...canvasStream.getTracks()];
-  if (audioStream) {
-    const audioTracks = audioStream.getAudioTracks();
-    if (audioTracks.length > 0) {
-      tracks.push(...audioTracks);
-    }
+  const audioTracks = audioStream?.getAudioTracks() || [];
+  const hasAudio = audioTracks.length > 0;
+  
+  if (hasAudio) {
+    tracks.push(...audioTracks);
   }
   
   const combinedStream = new MediaStream(tracks);
   
   // Find supported codec - try with opus audio codec first if audio is present
-  const hasAudio = audioStream && audioStream.getAudioTracks().length > 0;
   const codecs = hasAudio 
     ? [
         "video/webm;codecs=vp9,opus",

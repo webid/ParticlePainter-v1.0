@@ -110,7 +110,7 @@ export function ExportBar() {
     }
     
     setIsQuickExporting(true);
-    let audioConnection: AudioNode | null = null;
+    let audioDestination: MediaStreamAudioDestinationNode | null = null;
     
     try {
       // Get audio stream if audio is loaded and available
@@ -125,7 +125,7 @@ export function ExportBar() {
               // Connect Tone.js destination to capture destination
               const toneDestination = (await import("tone")).getDestination();
               toneDestination.connect(dest);
-              audioConnection = dest;
+              audioDestination = dest;
               audioStream = dest.stream;
             }
           }
@@ -139,9 +139,9 @@ export function ExportBar() {
     } catch (err) {
       alert(`Quick export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      // Clean up audio connection
-      if (audioConnection) {
-        audioConnection.disconnect();
+      // Clean up audio destination
+      if (audioDestination) {
+        audioDestination.disconnect();
       }
       setIsQuickExporting(false);
     }

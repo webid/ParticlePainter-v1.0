@@ -119,12 +119,12 @@ export function ExportBar() {
         try {
           const audioEngine = getAudioEngine();
           if (audioEngine.isLoaded()) {
-            const audioCtx = (await import("tone")).context.rawContext;
+            const Tone = await import("tone");
+            const audioCtx = Tone.context.rawContext;
             if (audioCtx && audioCtx instanceof AudioContext) {
               const dest = audioCtx.createMediaStreamDestination();
               // Connect Tone.js destination to capture destination
-              const toneDestination = (await import("tone")).getDestination();
-              toneDestination.connect(dest);
+              Tone.getDestination().connect(dest);
               audioDestination = dest;
               audioStream = dest.stream;
             }

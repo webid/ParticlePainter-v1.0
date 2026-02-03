@@ -255,8 +255,19 @@ export async function recordWebM(
 }
 
 // Export MP4 with audio using FFmpeg
-// Timeout for FFmpeg operations (5 minutes for long videos)
-const FFMPEG_OPERATION_TIMEOUT_MS = 5 * 60 * 1000;
+// Calculate dynamic timeout based on video duration and FPS
+// Higher FPS and longer videos take proportionally more time to encode
+// Formula: (20x video duration + 5 minutes baseline) * FPS multiplier, with 10 minute minimum
+function calculateFFmpegTimeout(durationMs: number, fps: number): number {
+  const baseTimeoutMs = 5 * 60 * 1000; // 5 minutes baseline
+  const durationBasedTimeout = durationMs * 20; // 20x video duration
+  const fpsMultiplier = fps >= 60 ? 1.5 : 1.0; // Extra time for 60fps
+  
+  const calculatedTimeout = (baseTimeoutMs + durationBasedTimeout) * fpsMultiplier;
+  const minTimeout = 10 * 60 * 1000; // Minimum 10 minutes
+  
+  return Math.max(calculatedTimeout, minTimeout);
+}
 
 export async function exportMP4(
   canvas: HTMLCanvasElement,
@@ -270,11 +281,14 @@ export async function exportMP4(
   currentExportAborted = false;
   
   const exportStartTime = Date.now();
+  const ffmpegTimeout = calculateFFmpegTimeout(durationMs, fps);
+  
   logExport("START", "Beginning MP4 export", { 
     durationMs, 
     fps, 
     hasAudio: !!audioUrl,
-    canvasSize: { width: canvas.width, height: canvas.height }
+    canvasSize: { width: canvas.width, height: canvas.height },
+    calculatedTimeout: ffmpegTimeout
   });
   
   onProgress?.({ stage: "recording", progress: 0, message: "Recording video..." });
@@ -430,7 +444,7 @@ export async function exportMP4(
       try {
         await withTimeout(
           ff.exec(ffmpegArgs),
-          FFMPEG_OPERATION_TIMEOUT_MS,
+          ffmpegTimeout,
           "FFmpeg mux video+audio"
         );
         logExport("FFMPEG", "FFmpeg mux command completed successfully");
@@ -463,7 +477,7 @@ export async function exportMP4(
       try {
         await withTimeout(
           ff.exec(ffmpegArgs),
-          FFMPEG_OPERATION_TIMEOUT_MS,
+          ffmpegTimeout,
           "FFmpeg convert to MP4"
         );
         logExport("FFMPEG", "FFmpeg convert command completed successfully");

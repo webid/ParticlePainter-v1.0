@@ -32,7 +32,7 @@ function logExport(stage: string, message: string, data?: unknown) {
     timestamp: Date.now(),
     stage,
     message,
-    data: data !== undefined ? data : undefined,
+    data,
   };
   exportLogs.push(entry);
   console.log(`[WebCodecs MP4 Export - ${stage}] ${message}`, data !== undefined ? data : "");

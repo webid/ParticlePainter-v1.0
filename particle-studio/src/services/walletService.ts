@@ -10,16 +10,32 @@ class WalletService {
   private wallet: BeaconWallet | null = null;
   private tezos: TezosToolkit | null = null;
   private userAddress: string | null = null;
+  private initialized: boolean = false;
+
+  private async initialize() {
+    if (this.initialized) return;
+    
+    try {
+      // Initialize wallet lazily
+      this.wallet = new BeaconWallet({
+        name: "Particle Painter",
+        iconUrl: "https://tezostaquito.io/img/favicon.png",
+        preferredNetwork: NETWORK_TYPE,
+      });
+      this.initialized = true;
+    } catch (error) {
+      console.error("Failed to initialize wallet:", error);
+      throw error;
+    }
+  }
 
   async connectWallet(): Promise<{ address: string; balance: number }> {
     try {
-      // Initialize wallet if not already done
+      // Initialize wallet on first use
+      await this.initialize();
+      
       if (!this.wallet) {
-        this.wallet = new BeaconWallet({
-          name: "Particle Painter",
-          iconUrl: "https://tezostaquito.io/img/favicon.png",
-          preferredNetwork: NETWORK_TYPE,
-        });
+        throw new Error("Failed to initialize wallet");
       }
 
       // Request permissions
@@ -58,6 +74,7 @@ class WalletService {
         this.wallet = null;
         this.tezos = null;
         this.userAddress = null;
+        this.initialized = false;
       }
     } catch (error) {
       console.error("Failed to disconnect wallet:", error);

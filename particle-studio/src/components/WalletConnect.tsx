@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useStudioStore } from "../state/store";
-import { walletService } from "../services/walletService";
 
 export function WalletConnect() {
   const [isConnecting, setIsConnecting] = useState(false);
@@ -17,6 +16,9 @@ export function WalletConnect() {
     setError(null);
     
     try {
+      // Lazy load wallet service
+      const { walletService } = await import("../services/walletService");
+      
       const { address, balance } = await walletService.connectWallet();
       
       // Sign a message to prove ownership
@@ -34,6 +36,8 @@ export function WalletConnect() {
 
   const handleDisconnect = async () => {
     try {
+      // Lazy load wallet service
+      const { walletService } = await import("../services/walletService");
       await walletService.disconnectWallet();
       disconnectWalletStore();
     } catch (err) {

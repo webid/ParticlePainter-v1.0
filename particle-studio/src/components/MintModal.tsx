@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useStudioStore } from "../state/store";
-import { walletService } from "../services/walletService";
-import { teiaService } from "../services/teiaService";
 import { getFrameBuffer } from "../engine/FrameBuffer";
 import { quickExportGif, quickExportWebM } from "../engine/QuickExport";
 
@@ -77,6 +75,10 @@ export function MintModal({ onClose }: MintModalProps) {
         fileName = `particle-${Date.now()}.webm`;
         mimeType = "video/webm";
       }
+
+      // Lazy load services
+      const { walletService } = await import("../services/walletService");
+      const { teiaService } = await import("../services/teiaService");
 
       // Get Tezos toolkit from wallet service
       const tezos = walletService.getTezos();

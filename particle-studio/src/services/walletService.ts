@@ -6,8 +6,15 @@ import { NetworkType, BeaconEvent, AccountInfo, SigningType } from "@airgap/beac
 const RPC_URL = "https://mainnet.api.tez.ie";
 const NETWORK_TYPE = NetworkType.MAINNET;
 
-// Debug logging helper
-const DEBUG = true;
+// Debug logging - only enabled in development mode
+const DEBUG = typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production';
+
+// Stabilization delay for Beacon SDK transport layer initialization
+// The Beacon SDK v4.x has a known timing issue where the transport layer may not be
+// fully initialized immediately after requestPermissions() completes. This delay
+// allows the SDK internal state to settle before allowing signing operations.
+const CONNECTION_STABILIZATION_DELAY_MS = 500;
+
 const log = (message: string, data?: unknown) => {
   if (DEBUG) {
     const timestamp = new Date().toISOString();
@@ -152,7 +159,7 @@ class WalletService {
           this.connectionReadyResolver = null;
         }
         log("Connection marked as ready for signing");
-      }, 500);
+      }, CONNECTION_STABILIZATION_DELAY_MS);
 
       return {
         address: this.userAddress,
@@ -225,7 +232,7 @@ class WalletService {
         payload: message,
       });
       
-      log("Sign payload successful", { signaturePrefix: result.signature.substring(0, 20) + "..." });
+      log("Sign payload successful");
       
       return result.signature;
     } catch (error) {

@@ -124,6 +124,8 @@ export function ExportBar() {
     
     setIsQuickExporting(true);
     let audioDestination: MediaStreamAudioDestinationNode | null = null;
+    let wasPlaying = false;
+    let ToneModule: typeof import("tone") | null = null;
     
     try {
       // Get audio stream if audio is loaded and available
@@ -132,16 +134,16 @@ export function ExportBar() {
         try {
           const audioEngine = getAudioEngine();
           if (audioEngine.isLoaded()) {
-            const Tone = await import("tone");
-            const audioCtx = Tone.context.rawContext;
+            ToneModule = await import("tone");
+            const audioCtx = ToneModule.context.rawContext;
             if (audioCtx && audioCtx instanceof AudioContext) {
               audioDestination = audioCtx.createMediaStreamDestination();
               
               // Connect Tone.js destination to capture destination
-              Tone.getDestination().connect(audioDestination);
+              ToneModule.getDestination().connect(audioDestination);
               
               // If audio is not playing, start it for the export
-              const wasPlaying = audioEngine.isPlaying();
+              wasPlaying = audioEngine.isPlaying();
               if (!wasPlaying) {
                 audioEngine.play();
               }
@@ -159,15 +161,22 @@ export function ExportBar() {
     } catch (err) {
       alert(`Quick export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      // Clean up audio destination
-      if (audioDestination) {
+      // Clean up audio destination and restore playback state
+      if (audioDestination && ToneModule) {
         try {
           // Disconnect the destination node from all its inputs
           audioDestination.disconnect();
           
           // Also disconnect Tone.js from this destination
-          const Tone = await import("tone");
-          Tone.getDestination().disconnect(audioDestination);
+          ToneModule.getDestination().disconnect(audioDestination);
+          
+          // Restore original audio playback state
+          if (!wasPlaying) {
+            const audioEngine = getAudioEngine();
+            if (audioEngine.isPlaying()) {
+              audioEngine.pause();
+            }
+          }
         } catch (err) {
           console.warn("Error disconnecting audio destination:", err);
         }

@@ -19,6 +19,7 @@ export default function App() {
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingTimeoutRef = useRef<number | null>(null);
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const audioWasPlayingRef = useRef<boolean>(false);
   const gifWorkerUrl = useRef<string>(new URL("gif.js/dist/gif.worker.js", import.meta.url).toString());
 
   // Mark as initialized after first render cycle completes
@@ -176,6 +177,9 @@ export default function App() {
         }
       }
       
+      // Reset audio playback state tracking
+      audioWasPlayingRef.current = false;
+      
       // Try to capture audio from Tone.js if audio is loaded
       try {
         const audioEngine = getAudioEngine();
@@ -191,6 +195,7 @@ export default function App() {
             
             // If audio is not playing, start it for the recording
             const wasPlaying = audioEngine.isPlaying();
+            audioWasPlayingRef.current = wasPlaying;
             if (!wasPlaying) {
               audioEngine.play();
             }
@@ -242,6 +247,13 @@ export default function App() {
         if (audioDestinationRef.current) {
           try {
             Tone.getDestination().disconnect(audioDestinationRef.current);
+            
+            // Restore original audio playback state
+            const audioEngine = getAudioEngine();
+            if (!audioWasPlayingRef.current && audioEngine.isPlaying()) {
+              audioEngine.pause();
+            }
+            
             audioDestinationRef.current = null;
           } catch (err) {
             console.warn("Error disconnecting audio destination:", err);

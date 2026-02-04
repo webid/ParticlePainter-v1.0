@@ -1,6 +1,6 @@
 import { BeaconWallet } from "@taquito/beacon-wallet";
 import { TezosToolkit } from "@taquito/taquito";
-import { NetworkType } from "@airgap/beacon-sdk";
+import { NetworkType, BeaconEvent, AccountInfo } from "@airgap/beacon-sdk";
 
 // Use mainnet for production
 const RPC_URL = "https://mainnet.api.tez.ie";
@@ -11,6 +11,7 @@ class WalletService {
   private tezos: TezosToolkit | null = null;
   private userAddress: string | null = null;
   private initialized: boolean = false;
+  private activeAccountResolver: ((account: AccountInfo) => void) | null = null;
 
   private async initialize() {
     if (this.initialized) return;
@@ -22,6 +23,23 @@ class WalletService {
         iconUrl: "https://tezostaquito.io/img/favicon.png",
         preferredNetwork: NETWORK_TYPE,
       });
+
+      // Subscribe to ACTIVE_ACCOUNT_SET event before requesting permissions
+      // This is required by Beacon SDK v4.x for proper account management
+      await this.wallet.client.subscribeToEvent(
+        BeaconEvent.ACTIVE_ACCOUNT_SET,
+        (account) => {
+          if (account) {
+            this.userAddress = account.address;
+            // Resolve any pending connection promise
+            if (this.activeAccountResolver) {
+              this.activeAccountResolver(account);
+              this.activeAccountResolver = null;
+            }
+          }
+        }
+      );
+
       this.initialized = true;
     } catch (error) {
       console.error("Failed to initialize wallet:", error);
@@ -38,15 +56,24 @@ class WalletService {
         throw new Error("Failed to initialize wallet");
       }
 
-      // Request permissions
-      const permissions = await this.wallet.requestPermissions();
-      
-      // Get active account
-      const activeAccount = await this.wallet.client.getActiveAccount();
-      if (!activeAccount) {
-        throw new Error("No active account found");
-      }
+      // Create a promise to wait for the active account from the subscription
+      const activeAccountPromise = new Promise<AccountInfo>((resolve, reject) => {
+        this.activeAccountResolver = resolve;
+        // Set a timeout in case the account is never set
+        setTimeout(() => {
+          if (this.activeAccountResolver) {
+            this.activeAccountResolver = null;
+            reject(new Error("Timeout waiting for active account"));
+          }
+        }, 60000); // 60 second timeout
+      });
 
+      // Request permissions - this will trigger ACTIVE_ACCOUNT_SET event
+      await this.wallet.requestPermissions();
+      
+      // Wait for the active account from the subscription
+      const activeAccount = await activeAccountPromise;
+      
       this.userAddress = activeAccount.address;
 
       // Initialize Tezos toolkit
@@ -74,7 +101,9 @@ class WalletService {
         this.wallet = null;
         this.tezos = null;
         this.userAddress = null;
-        // Don't reset initialized flag - allow reconnection without reinitializing
+        // Reset initialized flag to allow full reinitialization on next connect
+        // This ensures the ACTIVE_ACCOUNT_SET subscription is set up again
+        this.initialized = false;
       }
     } catch (error) {
       console.error("Failed to disconnect wallet:", error);

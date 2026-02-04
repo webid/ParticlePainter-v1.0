@@ -125,7 +125,7 @@ export function ExportBar() {
     setIsQuickExporting(true);
     let audioDestination: MediaStreamAudioDestinationNode | null = null;
     let wasPlaying = false;
-    let ToneModule: typeof import("tone") | null = null;
+    let toneModule: typeof import("tone") | null = null;
     
     try {
       // Get audio stream if audio is loaded and available
@@ -134,13 +134,13 @@ export function ExportBar() {
         try {
           const audioEngine = getAudioEngine();
           if (audioEngine.isLoaded()) {
-            ToneModule = await import("tone");
-            const audioCtx = ToneModule.context.rawContext;
+            toneModule = await import("tone");
+            const audioCtx = toneModule.context.rawContext;
             if (audioCtx && audioCtx instanceof AudioContext) {
               audioDestination = audioCtx.createMediaStreamDestination();
               
               // Connect Tone.js destination to capture destination
-              ToneModule.getDestination().connect(audioDestination);
+              toneModule.getDestination().connect(audioDestination);
               
               // If audio is not playing, start it for the export
               wasPlaying = audioEngine.isPlaying();
@@ -162,13 +162,13 @@ export function ExportBar() {
       alert(`Quick export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       // Clean up audio destination and restore playback state
-      if (audioDestination && ToneModule) {
+      if (audioDestination && toneModule) {
         try {
           // Disconnect the destination node from all its inputs
           audioDestination.disconnect();
           
           // Also disconnect Tone.js from this destination
-          ToneModule.getDestination().disconnect(audioDestination);
+          toneModule.getDestination().disconnect(audioDestination);
           
           // Restore original audio playback state
           if (!wasPlaying) {

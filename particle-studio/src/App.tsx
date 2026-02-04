@@ -194,9 +194,8 @@ export default function App() {
             Tone.getDestination().connect(audioDestination);
             
             // If audio is not playing, start it for the recording
-            const wasPlaying = audioEngine.isPlaying();
-            audioWasPlayingRef.current = wasPlaying;
-            if (!wasPlaying) {
+            audioWasPlayingRef.current = audioEngine.isPlaying();
+            if (!audioWasPlayingRef.current) {
               audioEngine.play();
             }
             

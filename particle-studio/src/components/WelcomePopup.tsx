@@ -97,8 +97,9 @@ export function WelcomePopup() {
           <button
             className="btn"
             onClick={() => {
-              // Open documentation in new tab - would link to manual
-              window.open("https://github.com/Paulwhoisaghostnet/ParticlePainter-v1.0#readme", "_blank");
+              // Open the local user manual or GitHub readme
+              // Note: In production, this would link to hosted documentation
+              alert("Check out USER_MANUAL.md in the project files for comprehensive documentation!");
             }}
           >
             📖 Read Manual

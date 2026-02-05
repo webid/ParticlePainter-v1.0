@@ -213,9 +213,10 @@ export function AttractionPointsEditor() {
                     >
                       <option value="">Select...</option>
                       {points
-                        .filter((p) => p.id !== point.id)
-                        .map((p, i) => (
-                          <option key={p.id} value={p.id}>Point {points.indexOf(p) + 1}</option>
+                        .map((p, originalIndex) => ({ p, originalIndex }))
+                        .filter(({ p }) => p.id !== point.id)
+                        .map(({ p, originalIndex }) => (
+                          <option key={p.id} value={p.id}>Point {originalIndex + 1}</option>
                         ))}
                     </select>
                   </div>

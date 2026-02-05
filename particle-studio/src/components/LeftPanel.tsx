@@ -8,6 +8,7 @@ import { AddLayerModal } from "./AddLayerModal";
 import { MaskEditor } from "./MaskEditor";
 import { MaskEraser } from "./MaskEraser";
 import { FlowPathEditor } from "./FlowPathEditor";
+import { AttractionPointsEditor } from "./AttractionPointsEditor";
 import { exportLayerSettings, importLayerSettings } from "../engine/LayerExporter";
 
 const typeOptions: { value: ParticleType; label: string; desc: string }[] = [
@@ -356,9 +357,12 @@ export function LeftPanel() {
 
             <div className="hr" />
 
-            {/* Attract */}
+            {/* Attract - Legacy single point (keep for backwards compatibility) */}
             <div className="section">
-              <h3 className="sectionTitle">Attract</h3>
+              <h3 className="sectionTitle">Attract (Legacy)</h3>
+              <div className="small" style={{ marginBottom: 8, opacity: 0.7 }}>
+                Single point attraction. Use Attraction Points below for advanced multi-point control.
+              </div>
               <SliderRow
                 label="Strength"
                 value={layer.attract}
@@ -366,6 +370,7 @@ export function LeftPanel() {
                 max={0.5}
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { attract: v })}
+                tooltip="Attraction strength to the single legacy point"
               />
               <SliderRow
                 label="Falloff"
@@ -374,6 +379,7 @@ export function LeftPanel() {
                 max={2}
                 step={0.1}
                 onChange={(v) => setLayer(layer.id, { attractFalloff: v })}
+                tooltip="0 = constant force, 2 = inverse square falloff"
               />
               <SliderRow
                 label="Point X"
@@ -396,6 +402,11 @@ export function LeftPanel() {
                 }
               />
             </div>
+
+            <div className="hr" />
+
+            {/* Multiple Attraction Points */}
+            <AttractionPointsEditor />
 
             <div className="hr" />
 

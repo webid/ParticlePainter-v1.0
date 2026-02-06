@@ -260,18 +260,28 @@ export async function recordWebM(
 }
 
 // Export MP4 with audio using FFmpeg
-// Calculate dynamic timeout based on video duration and FPS
-// Higher FPS and longer videos take proportionally more time to encode
-// Formula: (20x video duration + 5 minutes baseline) * FPS multiplier, with 10 minute minimum
-function calculateFFmpegTimeout(durationMs: number, fps: number): number {
-  const baseTimeoutMs = 5 * 60 * 1000; // 5 minutes baseline
-  const durationBasedTimeout = durationMs * 20; // 20x video duration
-  const fpsMultiplier = fps >= 60 ? 1.5 : 1.0; // Extra time for 60fps
+// Calculate dynamic timeout based on video duration, FPS, and resolution
+// FFmpeg encoding is CPU-intensive and not linear with duration
+// Higher resolution, FPS, and longer videos can take significantly more time
+// Formula: (50x video duration + 10 minutes baseline) * FPS multiplier * resolution multiplier, with 30 minute minimum
+function calculateFFmpegTimeout(durationMs: number, fps: number, width: number = 1920, height: number = 1080): number {
+  const baseTimeoutMs = 10 * 60 * 1000; // 10 minutes baseline (increased from 5)
+  const durationBasedTimeout = durationMs * 50; // 50x video duration (increased from 20x)
   
-  const calculatedTimeout = (baseTimeoutMs + durationBasedTimeout) * fpsMultiplier;
-  const minTimeout = 10 * 60 * 1000; // Minimum 10 minutes
+  // FPS multiplier: encoding 60fps takes significantly longer than 30fps
+  const fpsMultiplier = fps >= 60 ? 2.0 : fps >= 45 ? 1.5 : 1.0;
   
-  return Math.max(calculatedTimeout, minTimeout);
+  // Resolution multiplier: 4K takes much longer than 1080p
+  const pixels = width * height;
+  const basePixels = 1920 * 1080; // 1080p reference
+  const resolutionMultiplier = Math.sqrt(pixels / basePixels); // Square root for more reasonable scaling
+  
+  const calculatedTimeout = (baseTimeoutMs + durationBasedTimeout) * fpsMultiplier * resolutionMultiplier;
+  const minTimeout = 30 * 60 * 1000; // Minimum 30 minutes (increased from 10)
+  
+  const finalTimeout = Math.max(calculatedTimeout, minTimeout);
+  
+  return finalTimeout;
 }
 
 export async function exportMP4(
@@ -286,14 +296,15 @@ export async function exportMP4(
   currentExportAborted = false;
   
   const exportStartTime = Date.now();
-  const ffmpegTimeout = calculateFFmpegTimeout(durationMs, fps);
+  const ffmpegTimeout = calculateFFmpegTimeout(durationMs, fps, canvas.width, canvas.height);
   
   logExport("START", "Beginning MP4 export", { 
     durationMs, 
     fps, 
     hasAudio: !!audioUrl,
     canvasSize: { width: canvas.width, height: canvas.height },
-    calculatedTimeout: ffmpegTimeout
+    calculatedTimeout: ffmpegTimeout,
+    calculatedTimeoutMinutes: Math.round(ffmpegTimeout / 60000)
   });
   
   // Check if we can use the optimized WebCodecs pipeline
@@ -431,7 +442,7 @@ export async function exportMP4(
     
     await withTimeout(
       ff.writeFile("input.webm", videoData),
-      30000,
+      120000,
       "Write input.webm"
     );
     logExport("FFMPEG", "input.webm written successfully");
@@ -456,7 +467,7 @@ export async function exportMP4(
       
       await withTimeout(
         ff.writeFile("audio.mp3", audioData),
-        30000,
+        120000,
         "Write audio.mp3"
       );
       logExport("AUDIO", "audio.mp3 written to virtual filesystem");
@@ -469,11 +480,13 @@ export async function exportMP4(
       lastProgressUpdate = Date.now();
       
       // Mux video + audio into MP4
+      // Using 'ultrafast' preset for much faster encoding (important for client-side WASM)
+      // This trades file size for speed, which is acceptable for exports
       const ffmpegArgs = [
         "-i", "input.webm",
         "-i", "audio.mp3",
         "-c:v", "libx264",
-        "-preset", "fast",
+        "-preset", "ultrafast", // Changed from 'fast' to 'ultrafast' for speed
         "-crf", "23",
         "-c:a", "aac",
         "-b:a", "192k",
@@ -481,7 +494,10 @@ export async function exportMP4(
         "-movflags", "+faststart",
         "output.mp4",
       ];
-      logExport("FFMPEG", "FFmpeg command", { args: ffmpegArgs });
+      logExport("FFMPEG", "FFmpeg command", { 
+        args: ffmpegArgs,
+        timeoutSeconds: Math.round(ffmpegTimeout / 1000)
+      });
       
       try {
         await withTimeout(
@@ -505,16 +521,20 @@ export async function exportMP4(
       lastProgressUpdate = Date.now();
       
       // Just convert video to MP4
+      // Using 'ultrafast' preset for much faster encoding (important for client-side WASM)
       const ffmpegArgs = [
         "-i", "input.webm",
         "-c:v", "libx264",
-        "-preset", "fast",
+        "-preset", "ultrafast", // Changed from 'fast' to 'ultrafast' for speed
         "-crf", "23",
         "-an",
         "-movflags", "+faststart",
         "output.mp4",
       ];
-      logExport("FFMPEG", "FFmpeg command", { args: ffmpegArgs });
+      logExport("FFMPEG", "FFmpeg command", { 
+        args: ffmpegArgs,
+        timeoutSeconds: Math.round(ffmpegTimeout / 1000)
+      });
       
       try {
         await withTimeout(
@@ -539,7 +559,7 @@ export async function exportMP4(
     try {
       output = await withTimeout(
         ff.readFile("output.mp4"),
-        30000,
+        120000,
         "Read output.mp4"
       );
       logExport("FINALIZE", "output.mp4 read successfully", { 

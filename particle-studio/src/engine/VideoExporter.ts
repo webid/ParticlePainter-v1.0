@@ -89,7 +89,7 @@ async function getFFmpeg(): Promise<FFmpeg> {
     const startWait = Date.now();
     while (ffmpegLoading) {
       await new Promise((r) => setTimeout(r, 100));
-      if (Date.now() - startWait > 60000) {
+      if (Date.now() - startWait > 180000) { // 3 minutes (increased from 60s)
         logExport("INIT", "Timeout waiting for existing FFmpeg load");
         throw new Error("Timeout waiting for FFmpeg to load");
       }
@@ -118,14 +118,14 @@ async function getFFmpeg(): Promise<FFmpeg> {
     
     const coreURL = await withTimeout(
       toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-      30000,
+      120000, // 2 minutes (increased from 30s)
       "Fetch ffmpeg-core.js"
     );
     logExport("INIT", "FFmpeg core.js fetched successfully");
     
     const wasmURL = await withTimeout(
       toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-      60000,
+      300000, // 5 minutes (increased from 60s, WASM file is large ~30MB)
       "Fetch ffmpeg-core.wasm"
     );
     logExport("INIT", "FFmpeg core.wasm fetched successfully");
@@ -133,7 +133,7 @@ async function getFFmpeg(): Promise<FFmpeg> {
     logExport("INIT", "Loading FFmpeg with core and wasm URLs");
     await withTimeout(
       ffmpeg.load({ coreURL, wasmURL }),
-      60000,
+      180000, // 3 minutes (increased from 60s)
       "FFmpeg load"
     );
 
@@ -460,7 +460,7 @@ export async function exportMP4(
       
       const audioData = await withTimeout(
         fetchFile(audioUrl),
-        60000,
+        300000, // 5 minutes (increased from 60s for large audio files)
         "Fetch audio file"
       );
       logExport("AUDIO", "Audio file fetched", { size: audioData.byteLength });

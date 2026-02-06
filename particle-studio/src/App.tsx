@@ -197,28 +197,34 @@ export default function App() {
             console.log("[WebM Recording] AudioContext:", audioCtx?.constructor.name);
             
             if (audioCtx && audioCtx instanceof AudioContext) {
+              // CRITICAL: Start audio playback BEFORE creating MediaStreamDestination
+              // The audio graph must be actively producing audio for tracks to appear
+              audioWasPlayingRef.current = audioEngine.isPlaying();
+              if (!audioWasPlayingRef.current) {
+                console.log("[WebM Recording] Starting audio playback BEFORE creating destination");
+                audioEngine.play();
+                // Wait a moment for audio to actually start
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
+              
               const audioDestination = audioCtx.createMediaStreamDestination();
               audioDestinationRef.current = audioDestination;
               
               // Connect the Tone.js master output to the recording destination
-              // This ensures audio is captured even if not currently playing
               Tone.getDestination().connect(audioDestination);
               console.log("[WebM Recording] Connected Tone.js destination to MediaStreamDestination");
               
-              // If audio is not playing, start it for the recording
-              audioWasPlayingRef.current = audioEngine.isPlaying();
-              if (!audioWasPlayingRef.current) {
-                console.log("[WebM Recording] Starting audio playback for recording");
-                audioEngine.play();
-              }
-              
-              // Wait a moment for audio tracks to appear (sometimes they're not immediate)
+              // Wait for audio tracks to appear with multiple retries
               // This is a known issue with MediaStreamAudioDestinationNode
               let audioTracks = audioDestination.stream.getAudioTracks();
-              if (audioTracks.length === 0) {
-                console.log("[WebM Recording] No audio tracks yet, waiting 100ms...");
+              let attempts = 0;
+              const maxAttempts = 5;
+              
+              while (audioTracks.length === 0 && attempts < maxAttempts) {
+                console.log(`[WebM Recording] No audio tracks yet, waiting... (attempt ${attempts + 1}/${maxAttempts})`);
                 await new Promise(resolve => setTimeout(resolve, 100));
                 audioTracks = audioDestination.stream.getAudioTracks();
+                attempts++;
               }
               
               console.log("[WebM Recording] Audio tracks from destination:", audioTracks.length);

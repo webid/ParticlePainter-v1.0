@@ -170,8 +170,7 @@ export default function App() {
         const canvasStream = canvas.captureStream(fps);
         const tracks = [...canvasStream.getTracks()];
         
-        console.log("[WebM Recording] Starting setup...");
-        console.log("[WebM Recording] Video tracks from canvas:", tracks.length);
+        console.log("[WebM Recording] Starting WebM recording setup");
         
         // Clear any previous audio destination
         if (audioDestinationRef.current) {
@@ -179,7 +178,7 @@ export default function App() {
             Tone.getDestination().disconnect(audioDestinationRef.current);
             audioDestinationRef.current = null;
           } catch (err) {
-            console.warn("Error disconnecting previous audio destination:", err);
+            // Ignore disconnect errors
           }
         }
         
@@ -189,89 +188,57 @@ export default function App() {
         // Try to capture audio from Tone.js if audio is loaded
         try {
           const audioEngine = getAudioEngine();
-          console.log("[WebM Recording] Audio engine isLoaded:", audioEngine.isLoaded());
-          console.log("[WebM Recording] Audio engine isPlaying:", audioEngine.isPlaying());
           
           if (audioEngine.isLoaded()) {
-            const audioCtx = Tone.context.rawContext;
-            console.log("[WebM Recording] AudioContext:", audioCtx?.constructor.name);
+            const audioCtx = Tone.context.rawContext as AudioContext;
             
-            if (audioCtx && audioCtx instanceof AudioContext) {
-              // CRITICAL: Start audio playback BEFORE creating MediaStreamDestination
+            // Duck typing: Check if it has the method we need instead of instanceof
+            // Tone.js rawContext doesn't pass instanceof checks even though it's an AudioContext
+            if (audioCtx && typeof audioCtx.createMediaStreamDestination === 'function') {
+              // Start audio playback BEFORE creating MediaStreamDestination
               // The audio graph must be actively producing audio for tracks to appear
               audioWasPlayingRef.current = audioEngine.isPlaying();
               if (!audioWasPlayingRef.current) {
-                console.log("[WebM Recording] Starting audio playback BEFORE creating destination");
+                console.log("[WebM Recording] Starting audio playback for recording");
                 audioEngine.play();
-                // Wait a moment for audio to actually start
                 await new Promise(resolve => setTimeout(resolve, 100));
               }
               
               const audioDestination = audioCtx.createMediaStreamDestination();
               audioDestinationRef.current = audioDestination;
               
-              console.log("[WebM Recording] MediaStreamDestination created, stream ID:", audioDestination.stream.id);
-              console.log("[WebM Recording] Stream active:", audioDestination.stream.active);
-              
-              // CRITICAL FIX: Connect to the PLAYER directly, not Tone.getDestination()
-              // The AudioEngine's player outputs directly, bypassing the main destination
+              // Connect Player directly for audio capture
               const player = (audioEngine as any).player as Tone.Player | null;
               if (player) {
-                // Get the internal Tone node
-                const toneNode = player as any;
-                console.log("[WebM Recording] Player state:", player.state);
-                console.log("[WebM Recording] Player loaded:", player.loaded);
-                console.log("[WebM Recording] Player internal node:", toneNode._nativeAudioNode?.constructor.name);
-                
                 player.connect(audioDestination as any);
-                console.log("[WebM Recording] Connected Player to MediaStreamDestination");
-              } else {
-                console.error("[WebM Recording] Player is null - cannot capture audio!");
+                console.log("[WebM Recording] Connected audio player to recording stream");
               }
               
-              // WORKAROUND: Create a silent test oscillator to ensure stream has audio context
-              // This is needed because MediaStreamDestination might not create tracks without an active source
+              // Workaround: Create a silent test oscillator to ensure MediaStreamDestination creates tracks
+              // This is needed because Tone.js nodes don't always trigger track creation
               const testOsc = audioCtx.createOscillator();
               const testGain = audioCtx.createGain();
               testGain.gain.value = 0.0001; // Nearly silent
               testOsc.connect(testGain);
               testGain.connect(audioDestination);
               testOsc.start();
-              console.log("[WebM Recording] Started test oscillator for stream activation");
               
-              // Wait a moment for the stream to initialize
+              // Wait for audio tracks to appear
               await new Promise(resolve => setTimeout(resolve, 200));
               
-              // Wait for audio tracks to appear with multiple retries
-              // This is a known issue with MediaStreamAudioDestinationNode
               let audioTracks = audioDestination.stream.getAudioTracks();
               let attempts = 0;
-              const maxAttempts = 5;
-              
-              while (audioTracks.length === 0 && attempts < maxAttempts) {
-                console.log(`[WebM Recording] No audio tracks yet, waiting... (attempt ${attempts + 1}/${maxAttempts})`);
+              while (audioTracks.length === 0 && attempts < 5) {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 audioTracks = audioDestination.stream.getAudioTracks();
                 attempts++;
               }
               
-              console.log("[WebM Recording] Audio tracks from destination:", audioTracks.length);
-              if (audioTracks.length > 0) {
-                console.log("[WebM Recording] Audio track details:", audioTracks.map(t => ({
-                  id: t.id,
-                  label: t.label,
-                  enabled: t.enabled,
-                  muted: t.muted,
-                  readyState: t.readyState
-                })));
-              }
-              
-              
               if (audioTracks.length > 0) {
                 tracks.push(...audioTracks);
-                console.log("[WebM Recording] Added audio tracks. Total tracks:", tracks.length);
+                console.log("[WebM Recording] Audio captured successfully -", audioTracks.length, "track(s)");
               } else {
-                console.warn("[WebM Recording] No audio tracks available from MediaStreamDestination!");
+                console.warn("[WebM Recording] No audio tracks found after retries");
               }
             }
           } else {

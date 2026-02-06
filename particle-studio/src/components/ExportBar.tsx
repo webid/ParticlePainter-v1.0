@@ -185,6 +185,28 @@ export function ExportBar() {
     }
   };
 
+  // Recording timer
+  const [recordingTime, setRecordingTime] = useState(0);
+  
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isRecording) {
+      const startTime = Date.now();
+      interval = setInterval(() => {
+        setRecordingTime((Date.now() - startTime) / 1000);
+      }, 100);
+    } else {
+      setRecordingTime(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const exportProgress = useStudioStore((s) => s.exportProgress);
   const exportStatusMessage = useStudioStore((s) => s.exportStatusMessage);
 
@@ -201,7 +223,7 @@ export function ExportBar() {
               ? `GIF ${Math.round(exportProgress * 100)}%` 
               : isMp4Exporting 
                 ? `MP4 ${Math.round(exportProgress * 100)}%` 
-                : "REC"}
+                : `REC ${formatRecordingTime(recordingTime)}`}
         </span>
       )}
 

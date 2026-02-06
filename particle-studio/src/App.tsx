@@ -160,79 +160,109 @@ export default function App() {
     // Higher bitrate for higher FPS
     const bitrate = fps === 60 ? 16000000 : fps === 30 ? 10000000 : 8000000;
 
-    try {
-      if (resetOnStart) {
-        engineRef.current?.resetAll();
-      }
-      
-      const canvasStream = canvas.captureStream(fps);
-      const tracks = [...canvasStream.getTracks()];
-      
-      // Clear any previous audio destination
-      if (audioDestinationRef.current) {
-        try {
-          Tone.getDestination().disconnect(audioDestinationRef.current);
-          audioDestinationRef.current = null;
-        } catch (err) {
-          console.warn("Error disconnecting previous audio destination:", err);
-        }
-      }
-      
-      // Reset audio playback state tracking
-      audioWasPlayingRef.current = false;
-      
-      // Try to capture audio from Tone.js if audio is loaded
+    // Wrap in async IIFE to allow await for audio track initialization
+    (async () => {
       try {
-        const audioEngine = getAudioEngine();
-        if (audioEngine.isLoaded()) {
-          const audioCtx = Tone.context.rawContext;
-          if (audioCtx && audioCtx instanceof AudioContext) {
-            const audioDestination = audioCtx.createMediaStreamDestination();
-            audioDestinationRef.current = audioDestination;
-            
-            // Connect the Tone.js master output to the recording destination
-            // This ensures audio is captured even if not currently playing
-            Tone.getDestination().connect(audioDestination);
-            
-            // If audio is not playing, start it for the recording
-            audioWasPlayingRef.current = audioEngine.isPlaying();
-            if (!audioWasPlayingRef.current) {
-              audioEngine.play();
-            }
-            
-            const audioTracks = audioDestination.stream.getAudioTracks();
-            if (audioTracks.length > 0) {
-              tracks.push(...audioTracks);
-            }
+        if (resetOnStart) {
+          engineRef.current?.resetAll();
+        }
+        
+        const canvasStream = canvas.captureStream(fps);
+        const tracks = [...canvasStream.getTracks()];
+        
+        console.log("[WebM Recording] Starting setup...");
+        console.log("[WebM Recording] Video tracks from canvas:", tracks.length);
+        
+        // Clear any previous audio destination
+        if (audioDestinationRef.current) {
+          try {
+            Tone.getDestination().disconnect(audioDestinationRef.current);
+            audioDestinationRef.current = null;
+          } catch (err) {
+            console.warn("Error disconnecting previous audio destination:", err);
           }
         }
-      } catch (audioErr) {
-        console.warn("Could not capture audio:", audioErr);
-      }
-      
-      const combinedStream = new MediaStream(tracks);
-      
-      // Try VP9+opus first for audio, fall back
-      const codecsToTry = [
-        "video/webm;codecs=vp9,opus",
-        "video/webm;codecs=vp8,opus",
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-      ];
-      
-      let mimeType = "video/webm";
-      for (const codec of codecsToTry) {
-        if (MediaRecorder.isTypeSupported(codec)) {
-          mimeType = codec;
-          break;
+        
+        // Reset audio playback state tracking
+        audioWasPlayingRef.current = false;
+        
+        // Try to capture audio from Tone.js if audio is loaded
+        try {
+          const audioEngine = getAudioEngine();
+          console.log("[WebM Recording] Audio engine isLoaded:", audioEngine.isLoaded());
+          console.log("[WebM Recording] Audio engine isPlaying:", audioEngine.isPlaying());
+          
+          if (audioEngine.isLoaded()) {
+            const audioCtx = Tone.context.rawContext;
+            console.log("[WebM Recording] AudioContext:", audioCtx?.constructor.name);
+            
+            if (audioCtx && audioCtx instanceof AudioContext) {
+              const audioDestination = audioCtx.createMediaStreamDestination();
+              audioDestinationRef.current = audioDestination;
+              
+              // Connect the Tone.js master output to the recording destination
+              // This ensures audio is captured even if not currently playing
+              Tone.getDestination().connect(audioDestination);
+              console.log("[WebM Recording] Connected Tone.js destination to MediaStreamDestination");
+              
+              // If audio is not playing, start it for the recording
+              audioWasPlayingRef.current = audioEngine.isPlaying();
+              if (!audioWasPlayingRef.current) {
+                console.log("[WebM Recording] Starting audio playback for recording");
+                audioEngine.play();
+              }
+              
+              // Wait a moment for audio tracks to appear (sometimes they're not immediate)
+              // This is a known issue with MediaStreamAudioDestinationNode
+              let audioTracks = audioDestination.stream.getAudioTracks();
+              if (audioTracks.length === 0) {
+                console.log("[WebM Recording] No audio tracks yet, waiting 100ms...");
+                await new Promise(resolve => setTimeout(resolve, 100));
+                audioTracks = audioDestination.stream.getAudioTracks();
+              }
+              
+              console.log("[WebM Recording] Audio tracks from destination:", audioTracks.length);
+              
+              if (audioTracks.length > 0) {
+                tracks.push(...audioTracks);
+                console.log("[WebM Recording] Added audio tracks. Total tracks:", tracks.length);
+              } else {
+                console.warn("[WebM Recording] No audio tracks available from MediaStreamDestination!");
+              }
+            }
+          } else {
+            console.warn("[WebM Recording] Audio not loaded - WebM will have no audio");
+          }
+        } catch (audioErr) {
+          console.error("[WebM Recording] Audio capture error:", audioErr);
         }
-      }
-      
-      const mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType,
-        videoBitsPerSecond: bitrate
-      });
+        
+        const combinedStream = new MediaStream(tracks);
+        console.log("[WebM Recording] Combined stream - Video tracks:", combinedStream.getVideoTracks().length, "Audio tracks:", combinedStream.getAudioTracks().length);
+        
+        // Try VP9+opus first for audio, fall back
+        const codecsToTry = [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+        ];
+        
+        let mimeType = "video/webm";
+        for (const codec of codecsToTry) {
+          if (MediaRecorder.isTypeSupported(codec)) {
+            mimeType = codec;
+            console.log("[WebM Recording] Selected codec:", mimeType);
+            break;
+          }
+        }
+        
+        const mediaRecorder = new MediaRecorder(combinedStream, {
+          mimeType,
+          videoBitsPerSecond: bitrate,
+          audioBitsPerSecond: 192000, // Explicitly set audio bitrate
+        });
 
       recordedChunksRef.current = [];
 
@@ -288,10 +318,11 @@ export default function App() {
           }
         }, durationSeconds * 1000);
       }
-    } catch (err) {
-      console.error("Failed to start recording:", err);
-      setIsRecording(false);
-    }
+      } catch (err) {
+        console.error("Failed to start recording:", err);
+        setIsRecording(false);
+      }
+    })(); // Close async IIFE
   }, [startRecordingNonce, setIsRecording]);
 
   useEffect(() => {

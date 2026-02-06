@@ -394,16 +394,40 @@ export async function exportMP4(
   let lastProgressUpdate = Date.now();
   let lastProgressValue = 0;
   
-  const progressHandler = ({ progress }: { progress: number }) => {
+  const progressHandler = (event: { progress: number; time?: number }) => {
     lastProgressUpdate = Date.now();
+    let { progress } = event;
+    
+    // Sanitize progress
+    if (typeof progress !== 'number' || isNaN(progress)) {
+      progress = 0;
+    }
+    
+    // Some versions of ffmpeg.wasm emit progress as 0-1, others might be 0-100 or even time-based
+    // If we get weird negative numbers or > 1, try to rely on time if available
+    if (progress < 0 || progress > 1) {
+      if (typeof event.time === 'number' && durationMs > 0) {
+        // Calculate progress from time (microseconds) and duration (milliseconds)
+        // time is usually in microseconds in ffmpeg.wasm events
+        const timeMs = event.time / 1000;
+        progress = Math.max(0, Math.min(1, timeMs / durationMs));
+      } else {
+        // Fallback: Just clamp or ignore
+         progress = Math.max(0, Math.min(1, progress));
+      }
+    }
+    
     lastProgressValue = progress;
     // progress is 0-1, map it to the processing phase (0.55 - 0.95)
-    const mappedProgress = 0.55 + (progress * 0.4);
-    logExport("FFMPEG_PROGRESS", `Processing: ${Math.round(progress * 100)}%`);
+    // We strictly clamp to ensure no crazy numbers
+    const mappedProgress = 0.55 + (Math.max(0, Math.min(1, progress)) * 0.4);
+    
+    const percent = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+    logExport("FFMPEG_PROGRESS", `Processing: ${percent}%`);
     onProgress?.({ 
       stage: "processing", 
       progress: mappedProgress, 
-      message: `Processing video... ${Math.round(progress * 100)}%`
+      message: `Processing video... ${percent}%`
     });
   };
   

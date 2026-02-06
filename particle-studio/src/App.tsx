@@ -310,24 +310,50 @@ export default function App() {
           URL.revokeObjectURL(url);
           setIsRecording(false);
           if (recordingTimeoutRef.current) {
-            window.clearTimeout(recordingTimeoutRef.current);
+            clearInterval(recordingTimeoutRef.current);
             recordingTimeoutRef.current = null;
           }
+          setExportProgress(1, "Done!");
+          // Reset progress after a short delay
+          setTimeout(() => setExportProgress(0, ""), 2000);
         };
+
+        const setExportProgress = useStudioStore.getState().setExportProgress;
+        setExportProgress(0, "Recording...");
 
         mediaRecorder.start(100); // collect data every 100ms
         mediaRecorderRef.current = mediaRecorder;
         setIsRecording(true);
-
+        
+        // Start progress tracking if duration is set
         if (durationSeconds > 0) {
+          const startTime = Date.now();
+          const durationMs = durationSeconds * 1000;
+          
+          // Clear any existing interval
           if (recordingTimeoutRef.current) {
-            window.clearTimeout(recordingTimeoutRef.current);
+            clearInterval(recordingTimeoutRef.current);
           }
-          recordingTimeoutRef.current = window.setTimeout(() => {
-            if (mediaRecorder.state === "recording") {
-              mediaRecorder.stop();
-            }
-          }, durationSeconds * 1000);
+           
+          // Use an interval to update progress
+          const progressInterval = setInterval(() => {
+             const elapsed = Date.now() - startTime;
+             const progress = Math.min(1, elapsed / durationMs);
+             setExportProgress(progress, `Recording... ${Math.round(elapsed / 1000)}s / ${durationSeconds}s`);
+             
+             if (elapsed >= durationMs) {
+                clearInterval(progressInterval);
+                if (mediaRecorder.state === "recording") {
+                   mediaRecorder.stop();
+                }
+             }
+          }, 100);
+          
+          // Store interval ID in ref (casting to any/number to avoid type issues)
+          recordingTimeoutRef.current = progressInterval as any;
+        } else {
+             // Manual stop: still update progress message but no %
+             setExportProgress(0, "Recording...");
         }
       } catch (err) {
         console.error("Failed to start recording:", err);
@@ -348,7 +374,7 @@ export default function App() {
       mediaRecorderRef.current = null;
     }
     if (recordingTimeoutRef.current) {
-      window.clearTimeout(recordingTimeoutRef.current);
+      clearInterval(recordingTimeoutRef.current);
       recordingTimeoutRef.current = null;
     }
   }, [stopRecordingNonce]);
@@ -417,12 +443,12 @@ export default function App() {
           offCtx.clearRect(0, 0, offscreen.width, offscreen.height);
           offCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
 
-          offCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
-
           gif.addFrame(offCtx, { copy: true, delay: frameDurationMs });
           
-          // Update progress (capturing matches first 50%)
-          setExportProgress((i / totalFrames) * 0.5, `Capturing frame ${i + 1}/${totalFrames}`);
+          // Update progress (capturing matches first 50%) - throttled to every 5 frames
+          if (i % 5 === 0 || i === totalFrames - 1) {
+            setExportProgress((i / totalFrames) * 0.5, `Capturing frame ${i + 1}/${totalFrames}`);
+          }
         }
         
         setExportProgress(0.5, "Rendering GIF...");

@@ -714,3 +714,9 @@ canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.2);
 }
+
+/* Fix for select options visibility */
+.select option {
+  background: var(--panel);
+  color: var(--text);
+}

@@ -396,8 +396,10 @@ export default function App() {
         requestAnimationFrame(tick);
       });
 
+    const setExportProgress = useStudioStore((s) => s.setExportProgress);
     let cancelled = false;
     setIsGifExporting(true);
+    setExportProgress(0, "Initializing...");
 
     (async () => {
       try {
@@ -415,10 +417,18 @@ export default function App() {
           offCtx.clearRect(0, 0, offscreen.width, offscreen.height);
           offCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
 
+          offCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
+
           gif.addFrame(offCtx, { copy: true, delay: frameDurationMs });
+          
+          // Update progress (capturing matches first 50%)
+          setExportProgress((i / totalFrames) * 0.5, `Capturing frame ${i + 1}/${totalFrames}`);
         }
+        
+        setExportProgress(0.5, "Rendering GIF...");
 
         gif.on("finished", (blob: Blob) => {
+          setExportProgress(1, "Done!");
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -430,6 +440,11 @@ export default function App() {
 
         gif.on("abort", () => {
           setIsGifExporting(false);
+        });
+
+        // Add progress listener for rendering phase (remaining 50%)
+        gif.on("progress", (p: number) => {
+          setExportProgress(0.5 + (p * 0.5), `Rendering ${Math.round(p * 100)}%`);
         });
 
         gif.render();
@@ -447,7 +462,9 @@ export default function App() {
 
   // MP4 export with audio
   const exportMp4Nonce = useStudioStore((s) => s.exportMp4Nonce);
+
   const setIsMp4Exporting = useStudioStore((s) => s.setIsMp4Exporting);
+  const setExportProgress = useStudioStore((s) => s.setExportProgress);
   const lastMp4NonceRef = useRef(0);
 
   useEffect(() => {
@@ -490,11 +507,13 @@ export default function App() {
     }
 
     setIsMp4Exporting(true);
+    setExportProgress(0, "Initializing MP4...");
     console.log("=== Starting MP4 Export ===");
     console.log(`Duration: ${durationMs}ms, FPS: ${fps}, Has Audio: ${!!audioUrl}`);
 
     exportMP4(canvas, audioUrl ?? null, durationMs, fps, (progress) => {
       console.log(`MP4 Export: ${progress.message} (${Math.round(progress.progress * 100)}%)`);
+      setExportProgress(progress.progress, progress.message);
     })
       .then((blob) => {
         console.log("=== MP4 Export Successful ===");

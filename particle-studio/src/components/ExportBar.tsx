@@ -185,6 +185,9 @@ export function ExportBar() {
     }
   };
 
+  const exportProgress = useStudioStore((s) => s.exportProgress);
+  const exportStatusMessage = useStudioStore((s) => s.exportStatusMessage);
+
   return (
     <div className="exportBar">
       {/* Status indicator */}
@@ -192,8 +195,13 @@ export function ExportBar() {
         <span
           className="badge"
           style={{ background: "#ff3d5a", color: "#fff", animation: "pulse 1s infinite" }}
+          title={exportStatusMessage}
         >
-          ● {isGifExporting ? "GIF..." : isMp4Exporting ? "MP4..." : "REC"}
+          ● {isGifExporting 
+              ? `GIF ${Math.round(exportProgress * 100)}%` 
+              : isMp4Exporting 
+                ? `MP4 ${Math.round(exportProgress * 100)}%` 
+                : "REC"}
         </span>
       )}
 

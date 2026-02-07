@@ -56,6 +56,24 @@ export function WelcomePopup() {
           </div>
 
           <div className="section">
+            <h3 className="sectionTitle">Tips</h3>
+            <ul style={{ paddingLeft: 20, margin: "0 0 16px 0", fontSize: "13px", color: "var(--text)" }}>
+              <li style={{ marginBottom: 6 }}>
+                Use <strong>Movement Patterns</strong> like Wave, Spiral, Vortex, Evade, or Clusters for dynamic effects
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Enable <strong>Show Mask</strong> to visualize mask boundaries in red
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Add multiple <strong>Attraction Points</strong> for complex particle behaviors
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Adjust <strong>Jitter</strong> parameters (size, color, brightness, scale) for natural variation
+              </li>
+            </ul>
+          </div>
+
+          <div className="section">
             <h3 className="sectionTitle">Keyboard Shortcuts</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div className="row" style={{ margin: 0 }}>

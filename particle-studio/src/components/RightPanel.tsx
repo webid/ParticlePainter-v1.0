@@ -678,8 +678,9 @@ export function RightPanel() {
         <div className="hr" />
 
         <div className="small">
-          Tips: Use a high-contrast mask (black = inside). For trails, lower clear rate (0.1-0.3) 
-          and raise curl + dither.
+          Tips: Use a high-contrast mask (black = inside). For persistent trails, 
+          use low clear rate (0.1-0.3 preserves most of previous frames). For sharp visuals, 
+          keep clear rate high (0.8-1.0) and raise curl + dither.
         </div>
       </div>
     </div>

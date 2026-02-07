@@ -180,8 +180,7 @@ export function StudioControls() {
         />
 
         <div className="small" style={{ marginTop: 10 }}>
-          Tips: Use a high-contrast mask (black = inside). For trails, lower clear rate (0.1-0.3).
-          (0.03–0.10) and raise curl + dither.
+          Tips: Use a high-contrast mask (black = inside). For persistent trails, use low clear rate (0.1-0.3). Raise curl + dither for more texture.
         </div>
       </div>
 

@@ -36,6 +36,7 @@ uniform vec2  u_attractPoint;
 
 // Multiple attraction points system
 #define MAX_ATTRACTION_POINTS 8
+#define TWO_PI 6.28318530718
 uniform int u_attractionPointCount;
 uniform vec2 u_attractionPositions[MAX_ATTRACTION_POINTS];
 uniform float u_attractionStrengths[MAX_ATTRACTION_POINTS];
@@ -757,8 +758,7 @@ vec2 getSpawnVelocity(vec2 pos, vec2 seed, int region) {
 vec2 calculateMultiPointAttraction(vec2 pos, TypeProps tp, float time) {
   vec2 totalForce = vec2(0.0);
   
-  for(int i = 0; i < MAX_ATTRACTION_POINTS; i++) {
-    if(i >= u_attractionPointCount) break;
+  for(int i = 0; i < u_attractionPointCount; i++) {
     if(u_attractionEnabled[i] == 0) continue;
     
     vec2 toPoint = u_attractionPositions[i] - pos;
@@ -789,7 +789,7 @@ vec2 calculateMultiPointAttraction(vec2 pos, TypeProps tp, float time) {
     }
     else if(type == 3) {
       // Pulsing - oscillate strength
-      float pulse = sin(time * u_attractionPulseFreqs[i] * 6.28318) * 0.5 + 0.5;
+      float pulse = sin(time * u_attractionPulseFreqs[i] * TWO_PI) * 0.5 + 0.5;
       strength = strength * (0.3 + pulse * 0.7);
     }
     else if(type == 4) {

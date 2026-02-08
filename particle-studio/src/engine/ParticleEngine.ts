@@ -10,6 +10,17 @@ import {
 } from "./shaders";
 import type { AudioAnalysisData } from "./AudioEngine";
 
+// Constants
+const MAX_ATTRACTION_POINTS = 8;
+
+// Attraction type and effect mappings (constant to avoid recreation)
+const ATTRACTION_TYPE_MAP: Record<string, number> = { 
+  direct: 0, spiral: 1, blackhole: 2, pulsing: 3, magnetic: 4 
+};
+const ATTRACTION_EFFECT_MAP: Record<string, number> = { 
+  none: 0, despawn: 1, orbit: 2, concentrate: 3, transform: 4, passToNext: 5 
+};
+
 // Apply audio mapping to a base value
 function applyAudioMapping(
   baseValue: number,
@@ -574,7 +585,7 @@ export class ParticleEngine {
     // Multiple attraction points system
     const attractionPoints = l.attractionPoints || [];
     const enabledPoints = attractionPoints.filter(p => p.enabled);
-    const pointCount = Math.min(enabledPoints.length, 8); // Max 8 points
+    const pointCount = Math.min(enabledPoints.length, MAX_ATTRACTION_POINTS);
     gl.uniform1i(gl.getUniformLocation(this.simProg, "u_attractionPointCount"), pointCount);
     
     for (let i = 0; i < pointCount; i++) {
@@ -583,13 +594,8 @@ export class ParticleEngine {
       gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionStrengths[${i}]`), point.strength);
       gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionFalloffs[${i}]`), point.falloff);
       
-      // Map type string to int: direct=0, spiral=1, blackhole=2, pulsing=3, magnetic=4
-      const typeMap: Record<string, number> = { direct: 0, spiral: 1, blackhole: 2, pulsing: 3, magnetic: 4 };
-      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionTypes[${i}]`), typeMap[point.type] ?? 0);
-      
-      // Map effect string to int: none=0, despawn=1, orbit=2, concentrate=3, transform=4, passToNext=5
-      const effectMap: Record<string, number> = { none: 0, despawn: 1, orbit: 2, concentrate: 3, transform: 4, passToNext: 5 };
-      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEffects[${i}]`), effectMap[point.effect] ?? 0);
+      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionTypes[${i}]`), ATTRACTION_TYPE_MAP[point.type] ?? 0);
+      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEffects[${i}]`), ATTRACTION_EFFECT_MAP[point.effect] ?? 0);
       
       gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionPulseFreqs[${i}]`), point.pulseFrequency ?? 1.0);
       gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEnabled[${i}]`), point.enabled ? 1 : 0);

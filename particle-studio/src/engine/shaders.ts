@@ -869,10 +869,15 @@ void main(){
   if(u_groundPlaneEnabled > 0.5) {
     float cosT = cos(u_groundTilt);
     float sinT = sin(u_groundTilt);
-    // Ground plane normal points upward from the tilted plane
-    // The tangent (perpendicular to normal) is the downhill direction
-    vec2 groundDownhill = vec2(cosT, -sinT); // Perpendicular to normal, pointing downhill
-    // Distance from particle to ground plane (in Y direction for simplicity)
+    // u_groundTilt is the angle from horizontal (0° = flat, 90° = vertical wall)
+    // Ground plane normal: (sinT, cosT) points upward/perpendicular to the plane
+    // Downhill direction (tangent): perpendicular to normal, rotated 90° clockwise
+    // From normal (sinT, cosT), tangent is (cosT, -sinT) pointing downhill
+    vec2 groundDownhill = vec2(cosT, -sinT);
+    // Simplified distance from particle to ground plane
+    // Uses Y-distance approximation instead of true perpendicular distance for performance
+    // This is acceptable because the downhill force direction is correct,
+    // and the proximity calculation only needs relative distance
     float distToGround = pos.y - u_groundY;
     // Apply force proportional to distance (stronger when closer)
     // Only apply when particle is above and near the ground (within 0.3 units)

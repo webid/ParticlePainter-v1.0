@@ -111,8 +111,7 @@ export class ParticleEngine {
   private t0 = performance.now();
   private time = 0;
   
-  // TEMPORARY: For throttling shape debug logs
-  private _lastShapeLogTime: number = 0;
+
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -146,7 +145,64 @@ export class ParticleEngine {
   }
 
   destroy() {
-    // minimal cleanup (browser will reclaim on refresh)
+    const gl = this.gl;
+    
+    // Delete shader programs
+    gl.deleteProgram(this.simProg);
+    gl.deleteProgram(this.renderProg);
+    gl.deleteProgram(this.blitProg);
+    gl.deleteProgram(this.depthGenProg);
+    gl.deleteProgram(this.smearUpdateProg);
+    gl.deleteProgram(this.rippleUpdateProg);
+    gl.deleteProgram(this.dentUpdateProg);
+    gl.deleteProgram(this.fieldCompositeProg);
+    
+    // Delete accumulation buffers
+    gl.deleteTexture(this.acc.texA);
+    gl.deleteTexture(this.acc.texB);
+    gl.deleteFramebuffer(this.acc.fboA);
+    gl.deleteFramebuffer(this.acc.fboB);
+    
+    // Delete layer GPU resources
+    for (const lg of this.layersGPU.values()) {
+      gl.deleteTexture(lg.sim.texA);
+      gl.deleteTexture(lg.sim.texB);
+      gl.deleteFramebuffer(lg.sim.fboA);
+      gl.deleteFramebuffer(lg.sim.fboB);
+      if (lg.mask) gl.deleteTexture(lg.mask.tex);
+      if (lg.eraseMask) gl.deleteTexture(lg.eraseMask.tex);
+      if (lg.flowTex) gl.deleteTexture(lg.flowTex.tex);
+      if (lg.depthTex) gl.deleteTexture(lg.depthTex.tex);
+      if (lg.smearField) {
+        gl.deleteTexture(lg.smearField.pingpong.texA);
+        gl.deleteTexture(lg.smearField.pingpong.texB);
+        gl.deleteFramebuffer(lg.smearField.pingpong.fboA);
+        gl.deleteFramebuffer(lg.smearField.pingpong.fboB);
+      }
+      if (lg.rippleField) {
+        gl.deleteTexture(lg.rippleField.pingpong.texA);
+        gl.deleteTexture(lg.rippleField.pingpong.texB);
+        gl.deleteFramebuffer(lg.rippleField.pingpong.fboA);
+        gl.deleteFramebuffer(lg.rippleField.pingpong.fboB);
+      }
+      if (lg.dentField) {
+        gl.deleteTexture(lg.dentField.pingpong.texA);
+        gl.deleteTexture(lg.dentField.pingpong.texB);
+        gl.deleteFramebuffer(lg.dentField.pingpong.fboA);
+        gl.deleteFramebuffer(lg.dentField.pingpong.fboB);
+      }
+    }
+    this.layersGPU.clear();
+    
+    // Delete quad VAO/VBO
+    if (this.quad.vao) gl.deleteVertexArray(this.quad.vao);
+    if (this.quad.vbo) gl.deleteBuffer(this.quad.vbo);
+    
+    // Delete white texture
+    if (this.whiteTex) {
+      gl.deleteTexture(this.whiteTex);
+      this.whiteTex = null;
+    }
   }
 
   setGlobal(g: GlobalConfig) {
@@ -213,8 +269,15 @@ export class ParticleEngine {
     this.canvas.width = w;
     this.canvas.height = h;
 
-    this.acc = this.makePingPong(w, h, this.gl.RGBA8, this.gl.RGBA, this.gl.UNSIGNED_BYTE);
-    this.gl.viewport(0, 0, w, h);
+    // Delete old accumulation buffers to prevent memory leak
+    const gl = this.gl;
+    gl.deleteTexture(this.acc.texA);
+    gl.deleteTexture(this.acc.texB);
+    gl.deleteFramebuffer(this.acc.fboA);
+    gl.deleteFramebuffer(this.acc.fboB);
+
+    this.acc = this.makePingPong(w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    gl.viewport(0, 0, w, h);
   }
 
   resetAll() {
@@ -361,25 +424,8 @@ export class ParticleEngine {
       gl.uniform1f(u_glyphRotationJitter, l.glyphRotationJitter ?? 0);
       gl.uniform1f(u_glyphScaleJitter, l.glyphScaleJitter ?? 0);
       
-      const glyphPalette = l.glyphPalette || [];
-      const layerShape = l.shape ?? "dot";
-      
-      // SIMPLIFIED: Always use layer.shape directly - glyph palette is disabled
-      // Set effectiveGlyphCount to 0 so the shader uses u_shape instead of v_glyphShape
+      // Glyph palette is disabled - always use layer.shape directly
       const effectiveGlyphCount = 0;
-      
-      // TEMPORARY LOGGING: Track shape rendering (throttled to once per second)
-      const now = Date.now();
-      const shouldLog = now - this._lastShapeLogTime > 1000;
-      if (shouldLog) {
-        this._lastShapeLogTime = now;
-        console.log("=== PARTICLE ENGINE RENDER SHAPE ===");
-        console.log("Layer:", l.name, "| ID:", l.id);
-        console.log("layer.shape:", l.shape);
-        console.log("layerShape (with fallback):", layerShape);
-        console.log("glyphPalette:", JSON.stringify(glyphPalette));
-        console.log("effectiveGlyphCount:", effectiveGlyphCount);
-      }
       
       gl.uniform1i(u_glyphCount, effectiveGlyphCount);
       
@@ -426,13 +472,6 @@ export class ParticleEngine {
       
       // Shape: dot=0, star=1, dash=2, tilde=3, square=4, diamond=5, ring=6, cross=7
       const shapeInt = shapeToInt(l.shape ?? "dot");
-      
-      // TEMPORARY LOGGING: Track shape uniform being set
-      if (shouldLog) {
-        console.log("shapeInt (sent to shader):", shapeInt);
-        console.log("Shape mapping: dot=0, star=1, dash=2, tilde=3, square=4, diamond=5, ring=6, cross=7");
-        console.log("=== END PARTICLE ENGINE RENDER SHAPE ===");
-      }
       
       gl.uniform1i(u_shape, shapeInt);
       
@@ -582,24 +621,25 @@ export class ParticleEngine {
     gl.uniform1f(gl.getUniformLocation(this.simProg, "u_attractFalloff"), l.attractFalloff ?? 1.0);
     gl.uniform2f(gl.getUniformLocation(this.simProg, "u_attractPoint"), l.attractPoint.x, l.attractPoint.y);
     
-    // Multiple attraction points system
+    // Multiple attraction points system - iterate without filtering to avoid allocation
     const attractionPoints = l.attractionPoints || [];
-    const enabledPoints = attractionPoints.filter(p => p.enabled);
-    const pointCount = Math.min(enabledPoints.length, MAX_ATTRACTION_POINTS);
-    gl.uniform1i(gl.getUniformLocation(this.simProg, "u_attractionPointCount"), pointCount);
-    
-    for (let i = 0; i < pointCount; i++) {
-      const point = enabledPoints[i];
-      gl.uniform2f(gl.getUniformLocation(this.simProg, `u_attractionPositions[${i}]`), point.position.x, point.position.y);
-      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionStrengths[${i}]`), point.strength);
-      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionFalloffs[${i}]`), point.falloff);
+    let pointIdx = 0;
+    for (let i = 0; i < attractionPoints.length && pointIdx < MAX_ATTRACTION_POINTS; i++) {
+      const point = attractionPoints[i];
+      if (!point.enabled) continue;
       
-      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionTypes[${i}]`), ATTRACTION_TYPE_MAP[point.type] ?? 0);
-      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEffects[${i}]`), ATTRACTION_EFFECT_MAP[point.effect] ?? 0);
+      gl.uniform2f(gl.getUniformLocation(this.simProg, `u_attractionPositions[${pointIdx}]`), point.position.x, point.position.y);
+      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionStrengths[${pointIdx}]`), point.strength);
+      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionFalloffs[${pointIdx}]`), point.falloff);
       
-      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionPulseFreqs[${i}]`), point.pulseFrequency ?? 1.0);
-      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEnabled[${i}]`), point.enabled ? 1 : 0);
+      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionTypes[${pointIdx}]`), ATTRACTION_TYPE_MAP[point.type] ?? 0);
+      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEffects[${pointIdx}]`), ATTRACTION_EFFECT_MAP[point.effect] ?? 0);
+      
+      gl.uniform1f(gl.getUniformLocation(this.simProg, `u_attractionPulseFreqs[${pointIdx}]`), point.pulseFrequency ?? 1.0);
+      gl.uniform1i(gl.getUniformLocation(this.simProg, `u_attractionEnabled[${pointIdx}]`), 1);
+      pointIdx++;
     }
+    gl.uniform1i(gl.getUniformLocation(this.simProg, "u_attractionPointCount"), pointIdx);
     
     // Wind: convert degrees to radians
     const windAngleRad = ((l.windAngle ?? 0) * Math.PI) / 180;

@@ -805,22 +805,32 @@ export function LeftPanel() {
                     Black = inside boundary, white = outside.
                   </div>
 
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input
-                      key={layer.id}
-                      type="file"
-                      accept="image/*"
-                      style={{ flex: 1 }}
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        const url = URL.createObjectURL(f);
-                        setLayer(layer.id, { maskUrl: url });
-                      }}
-                    />
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                    <label className="btn btnSm" style={{ cursor: "pointer", flex: 1, textAlign: "center" }}>
+                      {layer.maskUrl ? "⟳ Replace" : "📁 Load mask"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          const url = URL.createObjectURL(f);
+                          setLayer(layer.id, { maskUrl: url });
+                          // Reset input so the same file can be re-selected
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {layer.maskUrl && (
+                      <span className="badge" style={{ background: "var(--success)", color: "#000", fontSize: 11 }}>
+                        Loaded
+                      </span>
+                    )}
                     <button
                       className="btn btnSm"
                       onClick={() => setLayer(layer.id, { maskUrl: undefined })}
+                      disabled={!layer.maskUrl}
                     >
                       Clear
                     </button>

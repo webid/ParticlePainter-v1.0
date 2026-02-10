@@ -3,6 +3,7 @@ import { useStudioStore } from "../state/store";
 import type { LayerConfig, ParticleType } from "../state/types";
 import { SliderRow } from "./ui/SliderRow";
 import { SwitchRow } from "./ui/SwitchRow";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 import { LayerTabs } from "./LayerTabs";
 import { AddLayerModal } from "./AddLayerModal";
 import { MaskEditor } from "./MaskEditor";
@@ -60,36 +61,44 @@ export function LeftPanel() {
 
   return (
     <div className="panel leftPanel">
-      <div className="panelHeader">
-        <div className="brand">
-          <h1>Particle Studio</h1>
-          <span>GPU • layers • masks</span>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span className="kbd">Space</span>
-          <span className="kbd">R</span>
-          <span className="kbd">H</span>
+      {/* Brand & playback — hidden on wide screens (shown in GlobalPanel) */}
+      <div className="wideHide">
+        <div className="panelHeader">
+          <div className="brand">
+            <h1>Particle Studio</h1>
+            <span>GPU • layers • masks</span>
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span className="kbd">Space</span>
+            <span className="kbd">R</span>
+            <span className="kbd">H</span>
+          </div>
         </div>
       </div>
 
-      <div className="panelBody">
-        {/* Playback controls */}
-        <div className="section">
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button
-              className="btn"
-              style={{ flex: 1 }}
-              onClick={() => setGlobal({ paused: !global.paused })}
-            >
-              {global.paused ? "▶ Resume" : "⏸ Pause"}
-            </button>
-            <button className="btn btnDanger" onClick={requestResetAll}>
-              Reset
-            </button>
-          </div>
-        </div>
+      <div className="panelHeader wideShow">
+        <h2 className="panelTitle">Layer Physics</h2>
+      </div>
 
-        <div className="hr" />
+      <div className="panelBody">
+        {/* Playback controls — hidden on wide screens */}
+        <div className="wideHide">
+          <div className="section">
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button
+                className="btn"
+                style={{ flex: 1 }}
+                onClick={() => setGlobal({ paused: !global.paused })}
+              >
+                {global.paused ? "▶ Resume" : "⏸ Pause"}
+              </button>
+              <button className="btn btnDanger" onClick={requestResetAll}>
+                Reset
+              </button>
+            </div>
+          </div>
+          <div className="hr" />
+        </div>
 
         {/* Layer tabs */}
         <LayerTabs onAddClick={() => setAddModalOpen(true)} />
@@ -200,8 +209,7 @@ export function LeftPanel() {
             <div className="hr" />
 
             {/* Spawn */}
-            <div className="section">
-              <h3 className="sectionTitle">Spawn</h3>
+            <CollapsibleSection title="Spawn" defaultOpen={true}>
               <SliderRow
                 label="Spawn density"
                 value={layer.spawnRate}
@@ -218,13 +226,12 @@ export function LeftPanel() {
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { spawnSpeed: v })}
               />
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Lifecycle */}
-            <div className="section">
-              <h3 className="sectionTitle">Lifecycle</h3>
+            <CollapsibleSection title="Lifecycle" defaultOpen={false}>
               <div className="small" style={{ marginBottom: 8 }}>
                 Control how particles accumulate and decay over time.
               </div>
@@ -252,13 +259,12 @@ export function LeftPanel() {
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { decayRate: v })}
               />
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Forces */}
-            <div className="section">
-              <h3 className="sectionTitle">Forces</h3>
+            <CollapsibleSection title="Forces" defaultOpen={true}>
               <SliderRow
                 label="Gravity"
                 value={layer.gravity}
@@ -307,13 +313,12 @@ export function LeftPanel() {
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { curl: v })}
               />
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Wind */}
-            <div className="section">
-              <h3 className="sectionTitle">Wind</h3>
+            <CollapsibleSection title="Wind" defaultOpen={false}>
               <div className="row" style={{ marginBottom: 8 }}>
                 <span className="rowLabel">Direction</span>
                 <div style={{ display: "flex", gap: 4 }}>
@@ -355,13 +360,12 @@ export function LeftPanel() {
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { windStrength: v })}
               />
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Attract - Legacy single point (keep for backwards compatibility) */}
-            <div className="section">
-              <h3 className="sectionTitle">Attract (Legacy)</h3>
+            <CollapsibleSection title="Attract (Legacy)" defaultOpen={false}>
               <div className="small" style={{ marginBottom: 8, opacity: 0.7 }}>
                 Single point attraction. Use Attraction Points below for advanced multi-point control.
               </div>
@@ -403,7 +407,7 @@ export function LeftPanel() {
                   setLayer(layer.id, { attractPoint: { ...layer.attractPoint, y: v } })
                 }
               />
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
@@ -413,8 +417,7 @@ export function LeftPanel() {
             <div className="hr" />
 
             {/* Spawn Region */}
-            <div className="section">
-              <h3 className="sectionTitle">Spawn Region</h3>
+            <CollapsibleSection title="Spawn Region" defaultOpen={false}>
               <div className="row">
                 <span className="rowLabel">Region</span>
                 <select
@@ -478,13 +481,12 @@ export function LeftPanel() {
                   }
                 />
               )}
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Movement Pattern */}
-            <div className="section">
-              <h3 className="sectionTitle">Movement Pattern</h3>
+            <CollapsibleSection title="Movement Pattern" defaultOpen={false}>
               <div className="row">
                 <span className="rowLabel">Pattern</span>
                 <select
@@ -757,13 +759,12 @@ export function LeftPanel() {
                   />
                 </>
               )}
-            </div>
+            </CollapsibleSection>
 
             <div className="hr" />
 
             {/* Boundary */}
-            <div className="section">
-              <h3 className="sectionTitle">Boundary</h3>
+            <CollapsibleSection title="Boundary" defaultOpen={false}>
               <div className="row">
                 <span className="rowLabel">Mode</span>
                 <select
@@ -792,7 +793,7 @@ export function LeftPanel() {
                 step={0.01}
                 onChange={(v) => setLayer(layer.id, { boundaryBounce: v })}
               />
-            </div>
+            </CollapsibleSection>
 
             {/* Mask section (only for mask layers) */}
             {layer.kind === "mask" && (

@@ -3,8 +3,10 @@ import GIF from "gif.js";
 import * as Tone from "tone";
 import { useStudioStore } from "./state/store";
 import { getResolutionDimensions } from "./state/store";
+import { GlobalPanel } from "./components/GlobalPanel";
 import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
+import { AudioExportPanel } from "./components/AudioExportPanel";
 import { ExportBar } from "./components/ExportBar";
 import { ParticleEngine } from "./engine/ParticleEngine";
 import { getAudioEngine } from "./components/AudioControls";
@@ -127,7 +129,7 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [global, layers]);
 
-  // one-way “commands” from UI -> engine
+  // one-way "commands" from UI -> engine
   const resetNonce = useStudioStore((s) => s.resetNonce);
   const screenshotNonce = useStudioStore((s) => s.screenshotNonce);
 
@@ -588,10 +590,13 @@ export default function App() {
       {/* Welcome popup on first load */}
       <WelcomePopup />
       
-      {/* Left Panel - Physics/Motion */}
+      {/* Zone 1: Global & Playback (wide screens only, via CSS) */}
+      <GlobalPanel />
+
+      {/* Zone 2: Left Panel - Layer Physics */}
       <LeftPanel />
 
-      {/* Center - Canvas */}
+      {/* Zone 3: Center - Canvas */}
       <div className="canvasArea">
         <div className="canvasWrap">
           <canvas ref={canvasRef} />
@@ -601,8 +606,11 @@ export default function App() {
       {/* Export Bar - Below Canvas */}
       <ExportBar />
 
-      {/* Right Panel - Render/Appearance */}
+      {/* Zone 4: Right Panel - Layer Appearance */}
       <RightPanel />
+
+      {/* Zone 5: Audio & Export (wide screens only, via CSS) */}
+      <AudioExportPanel />
     </div>
   );
 }

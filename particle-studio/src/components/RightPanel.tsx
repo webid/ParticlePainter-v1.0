@@ -3,6 +3,7 @@ import { useStudioStore } from "../state/store";
 import type { ParticleShape, ColorMode, ColorScheme, ResolutionPreset } from "../state/types";
 import { SliderRow } from "./ui/SliderRow";
 import { SwitchRow } from "./ui/SwitchRow";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 import { AudioControls } from "./AudioControls";
 import { AudioMappingEditor } from "./AudioMappingEditor";
 import type { AudioAnalysisData } from "../engine/AudioEngine";
@@ -33,31 +34,7 @@ const colorSchemes: { value: ColorScheme; label: string; colors: string[] }[] = 
   { value: "mono", label: "Mono", colors: ["#ffffff", "#888888", "#333333"] }
 ];
 
-// Collapsible section component for saving UI space
-function CollapsibleSection({ 
-  title, 
-  defaultOpen = true, 
-  children 
-}: { 
-  title: string; 
-  defaultOpen?: boolean; 
-  children: React.ReactNode;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  return (
-    <div className="section">
-      <h3 
-        className="sectionTitle" 
-        style={{ cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between" }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {title}
-        <span style={{ fontSize: "0.8em", opacity: 0.7 }}>{isOpen ? "▼" : "▶"}</span>
-      </h3>
-      {isOpen && children}
-    </div>
-  );
-}
+// CollapsibleSection is now imported from ./ui/CollapsibleSection
 
 export function RightPanel() {
   const layers = useStudioStore((s) => s.layers);
@@ -79,13 +56,20 @@ export function RightPanel() {
 
   return (
     <div className="panel rightPanel">
-      <div className="panelHeader">
+      {/* Default header — hidden on wide screens */}
+      <div className="panelHeader wideHide">
         <h2 className="panelTitle">Render / Appearance</h2>
         <span className="badge">{global.monochrome ? "Mono" : "RGB"}</span>
       </div>
 
+      {/* Wide screen header */}
+      <div className="panelHeader wideShow">
+        <h2 className="panelTitle">Layer Appearance</h2>
+      </div>
+
       <div className="panelBody">
-        {/* Resolution settings - FIRST GLOBAL PARAMETER */}
+        {/* Resolution settings — hidden on wide screens (shown in GlobalPanel) */}
+        <div className="wideHide">
         <div className="section">
           <h3 className="sectionTitle">Resolution</h3>
           <div className="row">
@@ -141,7 +125,7 @@ export function RightPanel() {
 
         <div className="hr" />
 
-        {/* Global section */}
+        {/* Global section — hidden on wide screens (shown in GlobalPanel) */}
         <div className="section">
           <h3 className="sectionTitle">Global</h3>
           <SliderRow
@@ -196,7 +180,7 @@ export function RightPanel() {
 
         <div className="hr" />
 
-        {/* Visual effects */}
+        {/* Visual effects — hidden on wide screens */}
         <div className="section">
           <h3 className="sectionTitle">Visual</h3>
           <SwitchRow
@@ -213,8 +197,9 @@ export function RightPanel() {
 
         <div className="hr" />
 
-        {/* Audio reactivity */}
+        {/* Audio reactivity — hidden on wide screens (shown in AudioExportPanel) */}
         <AudioControls onAnalysisUpdate={handleAudioAnalysis} />
+        </div>{/* end wideHide */}
 
         {layer && (
           <>
@@ -670,8 +655,10 @@ export function RightPanel() {
 
             <div className="hr" />
 
-            {/* Audio mapping for this layer */}
-            <AudioMappingEditor />
+            {/* Audio mapping for this layer — hidden on wide (shown in AudioExportPanel) */}
+            <div className="wideHide">
+              <AudioMappingEditor />
+            </div>
           </>
         )}
 

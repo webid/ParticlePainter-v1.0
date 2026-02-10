@@ -44,7 +44,7 @@ a {
 }
 
 /* ============================================
-   MAIN 3-COLUMN LAYOUT
+   MAIN 3-COLUMN LAYOUT (default: 1000-1439px)
    ============================================ */
 .app {
   display: grid;
@@ -53,6 +53,24 @@ a {
   gap: 1vh;
   height: 100vh;
   padding: 1vh;
+}
+
+/* New panels hidden by default (shown on wide screens) */
+.globalPanel {
+  display: none;
+}
+
+.audioExportPanel {
+  display: none;
+}
+
+/* Visibility utility classes for responsive layout */
+.wideHide {
+  display: block;
+}
+
+.wideShow {
+  display: none !important;
 }
 
 /* Left Panel (Physics/Motion) */
@@ -729,6 +747,124 @@ canvas {
 }
 
 /* ============================================
+   WIDE SCREEN: 5-ZONE LAYOUT (≥1440px)
+   ============================================ */
+@media (min-width: 1440px) {
+  .app {
+    grid-template-columns: 240px 260px 1fr 260px 240px;
+    grid-template-rows: 1fr auto;
+    gap: 0.8vh;
+    padding: 0.8vh;
+  }
+
+  /* Zone 1: Global & Playback */
+  .globalPanel {
+    display: flex;
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  /* Zone 2: Layer Physics */
+  .leftPanel {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  /* Zone 3: Canvas */
+  .canvasArea {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  /* Export bar (below canvas) */
+  .exportBar {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  /* Zone 4: Layer Appearance */
+  .rightPanel {
+    grid-column: 4;
+    grid-row: 1 / 3;
+  }
+
+  /* Zone 5: Audio & Export */
+  .audioExportPanel {
+    display: flex;
+    grid-column: 5;
+    grid-row: 1 / 3;
+  }
+
+  /* Hide content that moved to dedicated panels */
+  .wideHide {
+    display: none !important;
+  }
+
+  .wideShow {
+    display: flex !important;
+  }
+
+  /* Compact panel styling for dense layout */
+  .panel {
+    border-radius: var(--radius-sm);
+  }
+
+  .panelBody {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .panelHeader {
+    padding: 8px 10px;
+  }
+
+  .section {
+    padding: 6px 0;
+  }
+
+  .sectionTitle {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .row {
+    margin-bottom: 3px;
+  }
+
+  .rowLabel {
+    font-size: 11px;
+  }
+
+  .hr {
+    margin: 4px 0;
+  }
+
+  /* Compact slider styling */
+  .sliderRow {
+    gap: 4px;
+    margin-bottom: 2px;
+  }
+
+  .sliderRow label {
+    font-size: 11px;
+  }
+
+  .sliderRow .value {
+    font-size: 10px;
+    min-width: 36px;
+  }
+
+  /* Global panel brand styling */
+  .globalPanel .brand h1 {
+    font-size: 14px;
+  }
+
+  .globalPanel .brand span {
+    font-size: 10px;
+  }
+}
+
+/* ============================================
    RESPONSIVE ADJUSTMENTS
    ============================================ */
 @media (max-width: 1200px) {
@@ -741,6 +877,12 @@ canvas {
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto auto;
+  }
+
+  /* Hide wide-only panels */
+  .globalPanel,
+  .audioExportPanel {
+    display: none !important;
   }
 
   .leftPanel {
@@ -763,6 +905,15 @@ canvas {
     grid-column: 1;
     grid-row: 4;
     max-height: 40vh;
+  }
+
+  /* Ensure wideHide content is visible on narrow */
+  .wideHide {
+    display: block !important;
+  }
+
+  .wideShow {
+    display: none !important;
   }
 }
 
